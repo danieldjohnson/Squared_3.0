@@ -1,0 +1,29 @@
+{
+    "appKeys": {},
+    "capabilities": [
+        ""
+    ],
+    "companyName": "hexahedria",
+    "longName": "Squared 3.0",
+    "projectType": "native",
+    "resources": {
+        "media": [
+            {
+                "file": "images/squared3_menu.png",
+                "menuIcon": true,
+                "name": "MENU_ICON",
+                "type": "png"
+            }
+        ]
+    },
+    "sdkVersion": "3",
+    "shortName": "Squared 3.0",
+    "targetPlatforms": [
+        "basalt"
+    ],
+    "uuid": "67142435-ff9a-431f-94ec-e1ac54a82d20",
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": true
+    }
+}

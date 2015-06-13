@@ -270,7 +270,7 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
 }
 
 static void updateSlot(Layer *layer, GContext *ctx) {
-	int t, tx, ty, w, offs, shift, total, tilesize, widthadjust;
+	int t, tx, ty, w, shift, total, tilesize, widthadjust;
 	total = TOTALBLOCKS;
 	widthadjust = 0;
 	digitSlot *slot = *(digitSlot**)layer_get_data(layer);

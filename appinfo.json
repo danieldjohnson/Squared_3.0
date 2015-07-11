@@ -1,7 +1,17 @@
 {
-    "appKeys": {},
+    "appKeys": {
+        "background_color": 4,
+        "large_mode": 0,
+        "leading_zero": 3,
+        "number_base_color": 5,
+        "number_variation": 6,
+        "ornament_base_color": 7,
+        "ornament_variation": 8,
+        "quick_start": 2,
+        "us_date": 1
+    },
     "capabilities": [
-        ""
+        "configurable"
     ],
     "companyName": "hexahedria",
     "longName": "Squared 3.0",
@@ -22,7 +32,7 @@
         "basalt"
     ],
     "uuid": "67142435-ff9a-431f-94ec-e1ac54a82d20",
-    "versionLabel": "1.0",
+    "versionLabel": "2.0",
     "watchapp": {
         "watchface": true
     }

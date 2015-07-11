@@ -8,20 +8,51 @@
 
 Window *window;
 
-#define US_DATE true // true == MM/DD, false == DD/MM
-#define NO_ZERO true // true == replaces leading Zero for hour, day, month with a "cycler"
-#define TILE_SIZE 10
+typedef struct {
+  bool large_mode;
+  bool us_date;
+  bool quick_start;
+  bool leading_zero;
+  int background_color;
+  int number_base_color;
+  bool number_variation;
+  int ornament_base_color;
+  bool ornament_variation;
+} Preferences;
+
+Preferences curPrefs;
+
+enum {
+    KEY_LARGE_MODE,
+    KEY_US_DATE,
+    KEY_QUICK_START,
+    KEY_LEADING_ZERO,
+    KEY_BACKGROUND_COLOR,
+    KEY_NUMBER_BASE_COLOR,
+    KEY_NUMBER_VARIATION,
+    KEY_ORNAMENT_BASE_COLOR,
+    KEY_ORNAMENT_VARIATION,
+};
+
+#define PREFERENCES_KEY 0
+
+#define US_DATE (curPrefs.us_date) // true == MM/DD, false == DD/MM
+#define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
+#define TILE_SIZE (curPrefs.large_mode ? 12 : 10)
 #define NUMSLOTS 8
 #define SPACING_X TILE_SIZE
-#define SPACING_Y TILE_SIZE
+#define SPACING_Y (curPrefs.large_mode ? TILE_SIZE - 1 : TILE_SIZE)
 #define DIGIT_CHANGE_ANIM_DURATION 1700
-#define STARTDELAY 2000
+#define STARTDELAY (curPrefs.quick_start ? 500 : 2000)
 
-#define NUMBER_BASE_COLOR_ARGB8   0b11001010
-#define ORNAMENT_BASE_COLOR_ARGB8 0b11100010
-#define ADD_VARIATION true // true == colors are randomly shifted
+#define NUMBER_BASE_COLOR_ARGB8   (curPrefs.number_base_color)
+#define ORNAMENT_BASE_COLOR_ARGB8 (curPrefs.ornament_base_color)
+#define NUMBER_ADD_VARIATION      (curPrefs.number_variation)
+#define ORNAMENT_ADD_VARIATION    (curPrefs.ornament_variation)
+  
+#define BACKGROUND_COLOR    ((GColor8) { .argb = curPrefs.background_color })
 
-#define FONT blocks // blocks or clean. clean == numbers with no ornaments
+#define FONT blocks
 	
 typedef struct {
 	Layer *layer;
@@ -111,79 +142,6 @@ unsigned char blocks[][5][5] =  {{
 	{2,0,2,0,2},
 	{2,0,2,0,2}
 }};
-unsigned char clean[][5][5] =  {{
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,0,0,0,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{0,0,0,1,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{0,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,0,0,0,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1},
-	{0,0,0,0,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2}
-}, {
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2},
-	{2,2,2,2,2}
-}};
 
 int startDigit[NUMSLOTS] = {
 	11,10,10,11,11,10,10,11
@@ -226,7 +184,7 @@ unsigned char variation[] = {
     FONT_HEIGHT + SPACING_Y + FONT_HEIGHT)
 
 #define ORIGIN_X ((SCREEN_WIDTH - TILES_X)/2)
-#define ORIGIN_Y TILE_SIZE*1.5
+#define ORIGIN_Y (curPrefs.large_mode ? 1 : TILE_SIZE*1.5)
 	
 static GRect slotFrame(int i) {
 	int x, y, w, h;
@@ -255,14 +213,17 @@ static GRect slotFrame(int i) {
 
 static GColor8 getSlotColor(int x, int y, int digit, int pos) {
   int argb;
+  bool should_add_var = false;
   if (FONT[digit][y][x] == 0) {
-    return GColorBlack;
+    return BACKGROUND_COLOR;
   } else if (FONT[digit][y][x] == 1) {
     argb = NUMBER_BASE_COLOR_ARGB8;
+    should_add_var = NUMBER_ADD_VARIATION;
   } else {
     argb = ORNAMENT_BASE_COLOR_ARGB8;
+    should_add_var = ORNAMENT_ADD_VARIATION;
   }
-  if (ADD_VARIATION) {
+  if (should_add_var) {
     argb += variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
   }
   GColor8 color = { .argb = argb };
@@ -282,7 +243,7 @@ static void updateSlot(Layer *layer, GContext *ctx) {
 	uint32_t skewedNormTime = slot->normTime*3;
 	GRect r;
 	
-	graphics_context_set_fill_color(ctx, GColorBlack);
+	graphics_context_set_fill_color(ctx, BACKGROUND_COLOR);
 	r = layer_get_bounds(slot->layer);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 	for (t=0; t<total; t++) {
@@ -431,12 +392,12 @@ static void animateDigits(struct Animation *anim, const AnimationProgress normTi
 	}
 }
 
-static void init() {
-	Layer *rootLayer;
+static void setupUI() {
+  Layer *rootLayer;
 	int i;
 
 	window = window_create();
-	window_set_background_color(window, GColorBlack);
+	window_set_background_color(window, BACKGROUND_COLOR);
 	window_stack_push(window, true);
 
 	rootLayer = window_get_root_layer(window);
@@ -452,21 +413,72 @@ static void init() {
 	setupAnimation();
 
 	app_timer_register(STARTDELAY, handle_timer, NULL);
-	
-	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 }
 
-static void deinit() {
+static void teardownUI() {
 	int i;
-
-	tick_timer_service_unsubscribe();
-
 	for (i=0; i<NUMSLOTS; i++) {
 		deinitSlot(i);
 	}
 	
 	animation_destroy(anim);
 	window_destroy(window);
+}
+
+static void in_received_handler(DictionaryIterator *iter, void *context) {
+  curPrefs = (Preferences) {
+      .large_mode =             dict_find(iter, KEY_LARGE_MODE)->value->int8,
+      .us_date =                dict_find(iter, KEY_US_DATE)->value->int8,
+      .quick_start =            dict_find(iter, KEY_QUICK_START)->value->int8,
+      .leading_zero =           dict_find(iter, KEY_LEADING_ZERO)->value->int8,
+      .background_color =       dict_find(iter, KEY_BACKGROUND_COLOR)->value->int32,
+      .number_base_color =      dict_find(iter, KEY_NUMBER_BASE_COLOR)->value->int32,
+      .number_variation =       dict_find(iter, KEY_NUMBER_VARIATION)->value->int8,
+      .ornament_base_color =    dict_find(iter, KEY_ORNAMENT_BASE_COLOR)->value->int32,
+      .ornament_variation =     dict_find(iter, KEY_ORNAMENT_VARIATION)->value->int8,
+  };
+  persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+  teardownUI();
+  setupUI();
+}
+
+static void in_dropped_handler(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Dropped a message because %i", (int)reason);
+}
+
+static void init() {
+  
+  // Set up preferences
+  if(persist_exists(PREFERENCES_KEY)){
+    persist_read_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+  } else {
+    curPrefs = (Preferences) {
+      .large_mode = false,
+      .us_date = true,
+      .quick_start = false,
+      .leading_zero = false,
+      .background_color = 0b11000000,
+      .number_base_color = 0b11001010,
+      .number_variation = true,
+      .ornament_base_color = 0b11100010,
+      .ornament_variation = true,
+    };
+  }
+  
+  // Setup app message
+  app_message_register_inbox_received(in_received_handler);
+  app_message_register_inbox_dropped(in_dropped_handler);
+  app_message_open(100,0);
+  
+  setupUI();
+	
+	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+}
+
+static void deinit() {
+	tick_timer_service_unsubscribe();
+  
+  teardownUI();
 }
 
 int main(void) {

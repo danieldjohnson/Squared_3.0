@@ -280,14 +280,18 @@ static unsigned short get_display_hour(unsigned short hour) {
 }
 
 static void setupAnimation() {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Setting up anim");
   anim = animation_create();
 	animation_set_delay(anim, 0);
 	animation_set_duration(anim, DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
+  APP_LOG(APP_LOG_LEVEL_INFO, "Done setting up anim %i", (int)anim);
 }
 
 static void destroyAnimation() {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Destroying anim %i", (int)anim);
   animation_destroy(anim);
+  anim = NULL;
 }
 
 void handle_tick(struct tm *t, TimeUnits units_changed) {
@@ -383,6 +387,7 @@ static void deinitSlot(int i) {
 }
 
 static void animateDigits(struct Animation *anim, const AnimationProgress normTime) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Tick! %i", (int)anim);
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
@@ -396,7 +401,6 @@ static void setupUI() {
   Layer *rootLayer;
 	int i;
 
-	window = window_create();
 	window_set_background_color(window, BACKGROUND_COLOR);
 	window_stack_push(window, true);
 
@@ -422,7 +426,6 @@ static void teardownUI() {
 	}
 	
 	animation_destroy(anim);
-	window_destroy(window);
 }
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
@@ -438,8 +441,11 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
       .ornament_variation =     dict_find(iter, KEY_ORNAMENT_VARIATION)->value->int8,
   };
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+  APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
   teardownUI();
+  APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
   setupUI();
+  APP_LOG(APP_LOG_LEVEL_INFO, "Done");
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {
@@ -447,6 +453,7 @@ static void in_dropped_handler(AppMessageResult reason, void *context) {
 }
 
 static void init() {
+  window = window_create();
   
   // Set up preferences
   if(persist_exists(PREFERENCES_KEY)){
@@ -465,12 +472,12 @@ static void init() {
     };
   }
   
+  setupUI();
+  
   // Setup app message
   app_message_register_inbox_received(in_received_handler);
   app_message_register_inbox_dropped(in_dropped_handler);
   app_message_open(100,0);
-  
-  setupUI();
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 }
@@ -479,6 +486,7 @@ static void deinit() {
 	tick_timer_service_unsubscribe();
   
   teardownUI();
+  window_destroy(window);
 }
 
 int main(void) {

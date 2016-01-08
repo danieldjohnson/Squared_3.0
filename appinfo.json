@@ -17,14 +17,7 @@
     "longName": "Squared 4.0",
     "projectType": "native",
     "resources": {
-        "media": [
-            {
-                "file": "images/squared3_menu.png",
-                "menuIcon": true,
-                "name": "MENU_ICON",
-                "type": "png"
-            }
-        ]
+        "media": []
     },
     "sdkVersion": "3",
     "shortName": "Squared",

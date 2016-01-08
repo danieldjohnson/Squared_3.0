@@ -11,7 +11,7 @@ Window *window;
 
 typedef struct {
   bool large_mode;
-  bool us_date;
+  bool eu_date;
   bool quick_start;
   bool leading_zero;
   int background_color;
@@ -19,13 +19,14 @@ typedef struct {
   bool number_variation;
   int ornament_base_color;
   bool ornament_variation;
+  bool invert;
 } Preferences;
 
 Preferences curPrefs;
 
 enum {
     KEY_LARGE_MODE,
-    KEY_US_DATE,
+    KEY_EU_DATE,
     KEY_QUICK_START,
     KEY_LEADING_ZERO,
     KEY_BACKGROUND_COLOR,
@@ -33,13 +34,15 @@ enum {
     KEY_NUMBER_VARIATION,
     KEY_ORNAMENT_BASE_COLOR,
     KEY_ORNAMENT_VARIATION,
+    KEY_INVERT,
 };
 
 #define PREFERENCES_KEY 0
 
-#define US_DATE (curPrefs.us_date) // true == MM/DD, false == DD/MM
+#define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
-#define TILE_SIZE (curPrefs.large_mode ? 12 : 10)
+#define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
+#define INVERT (curPrefs.invert)
 #define NUMSLOTS PBL_IF_RECT_ELSE(8, 18)
 #define SPACING_X TILE_SIZE
 #define SPACING_Y (curPrefs.large_mode ? TILE_SIZE - 1 : TILE_SIZE)
@@ -51,7 +54,7 @@ enum {
 #define NUMBER_ADD_VARIATION      (curPrefs.number_variation)
 #define ORNAMENT_ADD_VARIATION    (curPrefs.ornament_variation)
   
-#define BACKGROUND_COLOR    ((GColor8) { .argb = curPrefs.background_color })
+#define BACKGROUND_COLOR    PBL_IF_BW_ELSE((INVERT ? GColorWhite : GColorBlack), ((GColor8) { .argb = curPrefs.background_color }))
 
 #define FONT blocks
 	
@@ -290,7 +293,11 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
       argb = NUMBER_BASE_COLOR_ARGB8;
       should_add_var = NUMBER_ADD_VARIATION;
     #elif defined(PBL_BW)
-      argb = 0b11111111;
+      if (!INVERT) {
+        argb = 0b11111111;
+      } else {
+        argb = 0b11000000;
+      }
     #endif
   } else {
     #if defined(PBL_COLOR)
@@ -525,7 +532,7 @@ static void teardownUI() {
 static void in_received_handler(DictionaryIterator *iter, void *context) {
   curPrefs = (Preferences) {
       .large_mode =             dict_find(iter, KEY_LARGE_MODE)->value->int8,
-      .us_date =                dict_find(iter, KEY_US_DATE)->value->int8,
+      .eu_date =                dict_find(iter, KEY_EU_DATE)->value->int8,
       .quick_start =            dict_find(iter, KEY_QUICK_START)->value->int8,
       .leading_zero =           dict_find(iter, KEY_LEADING_ZERO)->value->int8,
       .background_color =       dict_find(iter, KEY_BACKGROUND_COLOR)->value->int32,
@@ -533,6 +540,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
       .number_variation =       dict_find(iter, KEY_NUMBER_VARIATION)->value->int8,
       .ornament_base_color =    dict_find(iter, KEY_ORNAMENT_BASE_COLOR)->value->int32,
       .ornament_variation =     dict_find(iter, KEY_ORNAMENT_VARIATION)->value->int8,
+      .invert =                 dict_find(iter, KEY_INVERT)->value->int8,
   };
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
@@ -555,7 +563,7 @@ static void init() {
   } else {
     curPrefs = (Preferences) {
       .large_mode = false,
-      .us_date = true,
+      .eu_date = true,
       .quick_start = false,
       .leading_zero = false,
       .background_color = 0b11000000,
@@ -563,6 +571,7 @@ static void init() {
       .number_variation = true,
       .ornament_base_color = 0b11100010,
       .ornament_variation = true,
+      .invert = false,
     };
   }
   

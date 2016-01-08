@@ -1,14 +1,15 @@
 {
     "appKeys": {
         "background_color": 4,
+        "eu_date": 1,
+        "invert": 9,
         "large_mode": 0,
         "leading_zero": 3,
         "number_base_color": 5,
         "number_variation": 6,
         "ornament_base_color": 7,
         "ornament_variation": 8,
-        "quick_start": 2,
-        "us_date": 1
+        "quick_start": 2
     },
     "capabilities": [
         "configurable"

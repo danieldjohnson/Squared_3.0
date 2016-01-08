@@ -1,7 +1,8 @@
 /*
- * Original source code by LastFuture
+ * Original source code by lastfuture
  * SDK 2.0beta4 port by Jnm
  * SDK 3.0 port and colorizing by hexahedria
+ * adaptations for Chalk and Aplite by lastfuture
  */
 
 #include <pebble.h>
@@ -39,11 +40,11 @@ enum {
 #define US_DATE (curPrefs.us_date) // true == MM/DD, false == DD/MM
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE (curPrefs.large_mode ? 12 : 10)
-#define NUMSLOTS 8
+#define NUMSLOTS PBL_IF_RECT_ELSE(8, 18)
 #define SPACING_X TILE_SIZE
 #define SPACING_Y (curPrefs.large_mode ? TILE_SIZE - 1 : TILE_SIZE)
-#define DIGIT_CHANGE_ANIM_DURATION 1700
-#define STARTDELAY (curPrefs.quick_start ? 500 : 2000)
+#define DIGIT_CHANGE_ANIM_DURATION 1500
+#define STARTDELAY (curPrefs.quick_start ? 1000 : 2000)
 
 #define NUMBER_BASE_COLOR_ARGB8   (curPrefs.number_base_color)
 #define ORNAMENT_BASE_COLOR_ARGB8 (curPrefs.ornament_base_color)
@@ -62,6 +63,7 @@ typedef struct {
 	AnimationProgress normTime;
   int   slotIndex;
 } digitSlot;
+
 
 digitSlot slot[NUMSLOTS];
 
@@ -141,11 +143,24 @@ unsigned char blocks[][5][5] =  {{
 	{2,0,2,0,2},
 	{2,0,2,0,2},
 	{2,0,2,0,2}
+}, {
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1}
+}, {
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1}
 }};
 
-int startDigit[NUMSLOTS] = {
-	11,10,10,11,11,10,10,11
+int startDigit[18] = {
+	11,12,12,11,11,12,10,13,12,11,12,11,11,12,10,13,12,10 // 2x h, 2x m, 4x date, 2x filler top, 4x filler sides, 2x filler bottom, 2x filler bottom sides
 };
+
 
 unsigned char variation[] = {
   0b00000000, 0b00010000, 0b00000100, 0b00010000, 0b00000000,
@@ -170,25 +185,43 @@ unsigned char variation[] = {
   0b00000000, 0b00000001, 0b00010001, 0b00000101, 0b00010100
 };
 
+static uint8_t shadowtable[] = {192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
+                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
+                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
+                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
+                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
+                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
+                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
+                                208,208,208,209,208,208,208,209,208,208,208,209,212,212,212,213, \
+                                192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202, \
+                                192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202, \
+                                208,208,209,210,208,208,209,210,212,212,213,214,216,216,217,218, \
+                                224,224,225,226,224,224,225,226,228,228,229,230,232,232,233,234, \
+                                192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207, \
+                                208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223, \
+                                224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239, \
+                                240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255};
+// alpha should only be 0b??111111 where ?? = 00 (full shade), 01 (much shade), 10 (some shade), 11 (none shade)
+static uint8_t alpha = 0b10111111;
+
+
 #define FONT_HEIGHT_BLOCKS (sizeof *FONT / sizeof **FONT)
 #define FONT_WIDTH_BLOCKS (sizeof **FONT)
 #define TOTALBLOCKS FONT_HEIGHT_BLOCKS * FONT_WIDTH_BLOCKS
 #define FONT_HEIGHT FONT_HEIGHT_BLOCKS*TILE_SIZE
 #define FONT_WIDTH FONT_WIDTH_BLOCKS*TILE_SIZE
 
-#define SCREEN_WIDTH 144
-
 #define TILES_X ( \
     FONT_WIDTH + SPACING_X + FONT_WIDTH)
 #define TILES_Y ( \
     FONT_HEIGHT + SPACING_Y + FONT_HEIGHT)
 
-#define ORIGIN_X ((SCREEN_WIDTH - TILES_X)/2)
-#define ORIGIN_Y (curPrefs.large_mode ? 1 : TILE_SIZE*1.5)
+#define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
+#define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
 	
 static GRect slotFrame(int i) {
 	int x, y, w, h;
-	if (i<4) {
+	if (i<4) { // main digits
 		w = FONT_WIDTH;
 		h = FONT_HEIGHT;
 		if (i%2) {
@@ -202,12 +235,48 @@ static GRect slotFrame(int i) {
 		} else {
 			y = ORIGIN_Y + FONT_HEIGHT + SPACING_Y;
 		}
-	} else {
+	} else if (i<8) { // date digits
 		w = FONT_WIDTH/2;
 		h = FONT_HEIGHT/2;
 		x = ORIGIN_X + (FONT_WIDTH + SPACING_X) * (i - 4) / 2;
 		y = ORIGIN_Y + (FONT_HEIGHT + SPACING_Y) * 2;
-	}
+	} else if (i<10) { // top filler for round
+    w = FONT_WIDTH;
+		h = FONT_HEIGHT;
+    if (i%2) {
+			x = ORIGIN_X + FONT_WIDTH + SPACING_X; // i = 1 or 3
+		} else {
+			x = ORIGIN_X; // i = 0 or 2
+		}
+    y = ORIGIN_Y - FONT_HEIGHT - SPACING_Y;
+  } else if (i<14) { // side filler for round
+    w = FONT_WIDTH;
+		h = FONT_HEIGHT;
+    if (i%2) {
+			x = ORIGIN_X + FONT_WIDTH + SPACING_X + FONT_WIDTH + SPACING_X;
+		} else {
+			x = ORIGIN_X - FONT_WIDTH - SPACING_X;
+		}
+		if (i<12) {
+			y = ORIGIN_Y;
+		} else {
+			y = ORIGIN_Y + FONT_HEIGHT + SPACING_Y;
+		}
+  } else if (i<16) { // botom filler for round
+		w = FONT_WIDTH/2;
+		h = FONT_HEIGHT/2;
+    x = ORIGIN_X + (FONT_WIDTH + SPACING_X) * (i - 13) / 2; // 13 = 14-1 (skipping invisible slot outside circle)
+		y = ORIGIN_Y + (FONT_HEIGHT + SPACING_Y) * 2 + h + (h/6);    
+  } else { // bottom side filler for round
+		w = FONT_WIDTH/2;
+		h = FONT_HEIGHT/2;
+    if (i%2) {
+      x = ORIGIN_X + FONT_WIDTH + SPACING_X + FONT_WIDTH + SPACING_X;
+    } else {
+      x = ORIGIN_X - w - SPACING_X/2; // todo: find correct value
+    }
+		y = ORIGIN_Y + (FONT_HEIGHT + SPACING_Y) * 2;
+  }
 	return GRect(x, y, w, h);
 }
 
@@ -217,14 +286,29 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
   if (FONT[digit][y][x] == 0) {
     return BACKGROUND_COLOR;
   } else if (FONT[digit][y][x] == 1) {
-    argb = NUMBER_BASE_COLOR_ARGB8;
-    should_add_var = NUMBER_ADD_VARIATION;
+    #if defined(PBL_COLOR)
+      argb = NUMBER_BASE_COLOR_ARGB8;
+      should_add_var = NUMBER_ADD_VARIATION;
+    #elif defined(PBL_BW)
+      argb = 0b11111111;
+    #endif
   } else {
-    argb = ORNAMENT_BASE_COLOR_ARGB8;
-    should_add_var = ORNAMENT_ADD_VARIATION;
+    #if defined(PBL_COLOR)
+      argb = ORNAMENT_BASE_COLOR_ARGB8;
+      should_add_var = ORNAMENT_ADD_VARIATION;
+    #elif defined(PBL_BW)
+      argb = 0b11010101;
+    #endif
   }
   if (should_add_var) {
     argb += variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
+  }
+  if (pos >= 8) {
+    int argb_temp = shadowtable[alpha & argb];
+    if (argb_temp == 0b11000000) {
+      argb_temp = argb;
+    }
+    argb = argb_temp;
   }
   GColor8 color = { .argb = argb };
   return color;
@@ -285,6 +369,7 @@ static void setupAnimation() {
 	animation_set_delay(anim, 0);
 	animation_set_duration(anim, DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
+  animation_set_curve(anim, AnimationCurveEaseInOut);
   APP_LOG(APP_LOG_LEVEL_INFO, "Done setting up anim %i", (int)anim);
 }
 
@@ -347,6 +432,15 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
           slot[6].curDigit++;
         }
       }
+      if (NUMSLOTS > 8) {
+        for(int dig = 8; dig < NUMSLOTS; dig++) {
+          if (slot[dig].prevDigit == 10 || slot[dig].prevDigit == 12) {
+            slot[dig].curDigit = 11;
+          } else {
+            slot[dig].curDigit = 10;
+          }
+        }
+      }
     }
     setupAnimation();
     animation_schedule(anim);
@@ -370,7 +464,7 @@ void initSlot(int i, Layer *parent) {
 	s->normTime = ANIMATION_NORMALIZED_MAX;
 	s->prevDigit = 0;
 	s->curDigit = startDigit[i];
-	if (i<4) {
+	if ((i<4 || i>=8) && i<14) {
 		s->divider = 1;
 	} else {
 		s->divider = 2;

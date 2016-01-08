@@ -13,8 +13,8 @@
     "capabilities": [
         "configurable"
     ],
-    "companyName": "hexahedria",
-    "longName": "Squared 3.0",
+    "companyName": "lastfuture",
+    "longName": "Squared 4.0",
     "projectType": "native",
     "resources": {
         "media": [
@@ -27,12 +27,14 @@
         ]
     },
     "sdkVersion": "3",
-    "shortName": "Squared 3.0",
+    "shortName": "Squared",
     "targetPlatforms": [
-        "basalt"
+        "aplite",
+        "basalt",
+        "chalk"
     ],
-    "uuid": "67142435-ff9a-431f-94ec-e1ac54a82d20",
-    "versionLabel": "2.0",
+    "uuid": "793bab03-9464-48a2-b63f-3f779c473db8",
+    "versionLabel": "4.0",
     "watchapp": {
         "watchface": true
     }

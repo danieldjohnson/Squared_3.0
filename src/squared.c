@@ -20,6 +20,7 @@ typedef struct {
   int ornament_base_color;
   bool ornament_variation;
   bool invert;
+  bool monochrome;
 } Preferences;
 
 Preferences curPrefs;
@@ -35,6 +36,7 @@ enum {
     KEY_ORNAMENT_BASE_COLOR,
     KEY_ORNAMENT_VARIATION,
     KEY_INVERT,
+    KEY_MONOCHROME,
 };
 
 #define PREFERENCES_KEY 0
@@ -43,6 +45,7 @@ enum {
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
+#define GREYS (curPrefs.monochrome)
 #define NUMSLOTS PBL_IF_RECT_ELSE(8, 18)
 #define SPACING_X TILE_SIZE
 #define SPACING_Y (curPrefs.large_mode ? TILE_SIZE - 1 : TILE_SIZE)
@@ -73,6 +76,7 @@ digitSlot slot[NUMSLOTS];
 AnimationImplementation animImpl;
 Animation *anim;
 bool splashEnded = false;
+static bool debug = false;
 
 unsigned char blocks[][5][5] =  {{
 	{1,1,1,1,1},
@@ -304,7 +308,15 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
       argb = ORNAMENT_BASE_COLOR_ARGB8;
       should_add_var = ORNAMENT_ADD_VARIATION;
     #elif defined(PBL_BW)
-      argb = 0b11010101;
+      if (GREYS) {
+        argb = 0b11010101;
+      } else {
+        if (!INVERT) {
+          argb = 0b11111111;
+        } else {
+          argb = 0b11000000;
+        }
+      }
     #endif
   }
   if (should_add_var) {
@@ -394,11 +406,17 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       animation_unschedule(anim);
       animation_destroy(anim);
     }
-
-    ho = get_display_hour(t->tm_hour);
-    mi = t->tm_min;
-    da = t->tm_mday;
-    mo = t->tm_mon+1;
+    if (debug) {
+      ho = 19;
+      mi = 24;
+      da = 3;
+      mo = 12;
+    } else {
+      ho = get_display_hour(t->tm_hour);
+      mi = t->tm_min;
+      da = t->tm_mday;
+      mo = t->tm_mon+1;
+    }
 
     for (i=0; i<NUMSLOTS; i++) {
       slot[i].prevDigit = slot[i].curDigit;
@@ -439,13 +457,13 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
           slot[6].curDigit++;
         }
       }
-      if (NUMSLOTS > 8) {
-        for(int dig = 8; dig < NUMSLOTS; dig++) {
-          if (slot[dig].prevDigit == 10 || slot[dig].prevDigit == 12) {
-            slot[dig].curDigit = 11;
-          } else {
-            slot[dig].curDigit = 10;
-          }
+    }
+    if (NUMSLOTS > 8) {
+      for(int dig = 8; dig < NUMSLOTS; dig++) {
+        if (slot[dig].prevDigit == 10 || slot[dig].prevDigit == 12) {
+          slot[dig].curDigit = 11;
+        } else {
+          slot[dig].curDigit = 10;
         }
       }
     }
@@ -530,18 +548,51 @@ static void teardownUI() {
 }
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
-  curPrefs = (Preferences) {
-      .large_mode =             dict_find(iter, KEY_LARGE_MODE)->value->int8,
-      .eu_date =                dict_find(iter, KEY_EU_DATE)->value->int8,
-      .quick_start =            dict_find(iter, KEY_QUICK_START)->value->int8,
-      .leading_zero =           dict_find(iter, KEY_LEADING_ZERO)->value->int8,
-      .background_color =       dict_find(iter, KEY_BACKGROUND_COLOR)->value->int32,
-      .number_base_color =      dict_find(iter, KEY_NUMBER_BASE_COLOR)->value->int32,
-      .number_variation =       dict_find(iter, KEY_NUMBER_VARIATION)->value->int8,
-      .ornament_base_color =    dict_find(iter, KEY_ORNAMENT_BASE_COLOR)->value->int32,
-      .ornament_variation =     dict_find(iter, KEY_ORNAMENT_VARIATION)->value->int8,
-      .invert =                 dict_find(iter, KEY_INVERT)->value->int8,
-  };
+  Tuple *large_mode_t = dict_find(iter, KEY_LARGE_MODE);
+  Tuple *eu_date_t = dict_find(iter, KEY_EU_DATE);
+  Tuple *quick_start_t = dict_find(iter, KEY_QUICK_START);
+  Tuple *leading_zero_t = dict_find(iter, KEY_LEADING_ZERO);
+  Tuple *background_color_t = dict_find(iter, KEY_BACKGROUND_COLOR);
+  Tuple *number_base_color_t = dict_find(iter, KEY_NUMBER_BASE_COLOR);
+  Tuple *number_variation_t = dict_find(iter, KEY_NUMBER_VARIATION);
+  Tuple *ornament_base_color_t = dict_find(iter, KEY_ORNAMENT_BASE_COLOR);
+  Tuple *ornament_variation_t = dict_find(iter, KEY_ORNAMENT_VARIATION);
+  Tuple *invert_t = dict_find(iter, KEY_INVERT);
+  Tuple *monochrome_t = dict_find(iter, KEY_MONOCHROME);
+  
+  if (large_mode_t) {
+    curPrefs.large_mode =             large_mode_t->value->int8;
+  }
+  if (eu_date_t) {
+    curPrefs.eu_date =                eu_date_t->value->int8;
+  }
+  if (quick_start_t) {
+    curPrefs.quick_start =            quick_start_t->value->int8;
+  }
+  if (leading_zero_t) {
+    curPrefs.leading_zero =           leading_zero_t->value->int8;
+  }
+  if (background_color_t) {
+    curPrefs.background_color =       background_color_t->value->int32;
+  }
+  if (number_base_color_t) {
+    curPrefs.number_base_color =      number_base_color_t->value->int32;
+  }
+  if (number_variation_t) {
+    curPrefs.number_variation =       number_variation_t->value->int8;
+  }
+  if (ornament_base_color_t) {
+    curPrefs.ornament_base_color =    ornament_base_color_t->value->int32;
+  }
+  if (ornament_variation_t) {
+    curPrefs.ornament_variation =     ornament_variation_t->value->int8;
+  }
+  if (invert_t) {
+    curPrefs.invert =                 invert_t->value->int8;
+  }
+  if (monochrome_t) {
+    curPrefs.monochrome =             monochrome_t->value->int8;
+  }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
   teardownUI();
@@ -555,6 +606,10 @@ static void in_dropped_handler(AppMessageResult reason, void *context) {
 }
 
 static void init() {
+  if (watch_info_get_model()==WATCH_INFO_MODEL_UNKNOWN) {
+    debug = true;
+  }
+  
   window = window_create();
   
   // Set up preferences
@@ -572,6 +627,7 @@ static void init() {
       .ornament_base_color = 0b11100010,
       .ornament_variation = true,
       .invert = false,
+      .monochrome = false,
     };
   }
   
@@ -580,7 +636,7 @@ static void init() {
   // Setup app message
   app_message_register_inbox_received(in_received_handler);
   app_message_register_inbox_dropped(in_dropped_handler);
-  app_message_open(100,0);
+  app_message_open(150,0);
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
 }

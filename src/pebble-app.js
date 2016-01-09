@@ -31,7 +31,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
             number_variation: configData.number_variation,
             ornament_base_color: configData.ornament_base_color,
             ornament_variation: configData.ornament_variation,
-            invert: 0+(configData.invert === 'true')
+            invert: 0+(configData.invert === 'true'),
+            monochrome: 0+(configData.monochrome === 'true')
         }, function() {
             console.log('Send successful!');
         }, function() {

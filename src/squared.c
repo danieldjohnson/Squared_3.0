@@ -21,6 +21,7 @@ typedef struct {
   bool ornament_variation;
   bool invert;
   bool monochrome;
+  bool center;
 } Preferences;
 
 Preferences curPrefs;
@@ -37,11 +38,13 @@ enum {
     KEY_ORNAMENT_VARIATION,
     KEY_INVERT,
     KEY_MONOCHROME,
+    KEY_CENTER,
 };
 
 #define PREFERENCES_KEY 0
 
 #define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
+#define CENTER_DATE (curPrefs.center)
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
@@ -407,10 +410,10 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       animation_destroy(anim);
     }
     if (debug) {
-      ho = 19;
-      mi = 24;
-      da = 3;
-      mo = 12;
+      ho = get_display_hour(t->tm_hour);
+      mi = t->tm_min;
+      da = 10;
+      mo = 1;
     } else {
       ho = get_display_hour(t->tm_hour);
       mi = t->tm_min;
@@ -427,15 +430,33 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     slot[2].curDigit = mi/10;
     slot[3].curDigit = mi%10;
     if (US_DATE) {
-      slot[6].curDigit = da/10;
-      slot[7].curDigit = da%10;
       slot[4].curDigit = mo/10;
       slot[5].curDigit = mo%10;
+      if (CENTER_DATE && da < 10) {
+        slot[6].curDigit = da%10;
+        if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
+          slot[7].curDigit = 11;
+        } else {
+          slot[7].curDigit = 10;
+        }
+      } else {
+        slot[6].curDigit = da/10;
+        slot[7].curDigit = da%10;
+      }
     } else {
       slot[4].curDigit = da/10;
       slot[5].curDigit = da%10;
-      slot[6].curDigit = mo/10;
-      slot[7].curDigit = mo%10;
+      if (CENTER_DATE && mo < 10) {
+        slot[6].curDigit = mo%10;
+        if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
+          slot[7].curDigit = 11;
+        } else {
+          slot[7].curDigit = 10;
+        }
+      } else {
+        slot[6].curDigit = mo/10;
+        slot[7].curDigit = mo%10;
+      }
     }
 
     if (NO_ZERO) {
@@ -559,6 +580,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *ornament_variation_t = dict_find(iter, KEY_ORNAMENT_VARIATION);
   Tuple *invert_t = dict_find(iter, KEY_INVERT);
   Tuple *monochrome_t = dict_find(iter, KEY_MONOCHROME);
+  Tuple *center_t = dict_find(iter, KEY_CENTER);
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -593,7 +615,11 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (monochrome_t) {
     curPrefs.monochrome =             monochrome_t->value->int8;
   }
+  if (center_t) {
+    curPrefs.center =                 center_t->value->int8;
+  }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+  vibes_short_pulse();
   APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
   teardownUI();
   APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
@@ -618,7 +644,7 @@ static void init() {
   } else {
     curPrefs = (Preferences) {
       .large_mode = false,
-      .eu_date = true,
+      .eu_date = false,
       .quick_start = false,
       .leading_zero = false,
       .background_color = 0b11000000,
@@ -628,6 +654,7 @@ static void init() {
       .ornament_variation = true,
       .invert = false,
       .monochrome = false,
+      .center = false,
     };
   }
   

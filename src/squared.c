@@ -386,17 +386,23 @@ static unsigned short get_display_hour(unsigned short hour) {
 }
 
 static void setupAnimation() {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Setting up anim");
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Setting up anim");
+  }
   anim = animation_create();
 	animation_set_delay(anim, 0);
 	animation_set_duration(anim, DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
   animation_set_curve(anim, AnimationCurveEaseInOut);
-  APP_LOG(APP_LOG_LEVEL_INFO, "Done setting up anim %i", (int)anim);
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Done setting up anim %i", (int)anim);
+  }
 }
 
 static void destroyAnimation() {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Destroying anim %i", (int)anim);
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Destroying anim %i", (int)anim);
+  }
   animation_destroy(anim);
   anim = NULL;
 }
@@ -410,10 +416,10 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       animation_destroy(anim);
     }
     if (debug) {
-      ho = get_display_hour(t->tm_hour);
-      mi = t->tm_min;
-      da = 10;
-      mo = 1;
+      ho = 5;
+      mi = 15;
+      da = 12;
+      mo = 3;
     } else {
       ho = get_display_hour(t->tm_hour);
       mi = t->tm_min;
@@ -508,7 +514,7 @@ void initSlot(int i, Layer *parent) {
 	
   s->slotIndex = i;
 	s->normTime = ANIMATION_NORMALIZED_MAX;
-	s->prevDigit = 0;
+	s->prevDigit = startDigit[i];
 	s->curDigit = startDigit[i];
 	if ((i<4 || i>=8) && i<14) {
 		s->divider = 1;
@@ -527,7 +533,9 @@ static void deinitSlot(int i) {
 }
 
 static void animateDigits(struct Animation *anim, const AnimationProgress normTime) {
-  APP_LOG(APP_LOG_LEVEL_INFO, "Tick! %i", (int)anim);
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Tick! %i", (int)anim);
+  }
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
@@ -620,11 +628,17 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
-  APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
+  }
   teardownUI();
-  APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
+  }
   setupUI();
-  APP_LOG(APP_LOG_LEVEL_INFO, "Done");
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Done");
+  }
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {

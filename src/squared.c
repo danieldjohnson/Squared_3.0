@@ -214,6 +214,9 @@ static uint8_t shadowtable[] = {192,192,192,192,192,192,192,192,192,192,192,192,
 // alpha should only be 0b??111111 where ?? = 00 (full shade), 01 (much shade), 10 (some shade), 11 (none shade)
 static uint8_t alpha = 0b10111111;
 
+uint8_t combine_colors(uint8_t bg_color, uint8_t fg_color) {
+    return (shadowtable[((~fg_color)&0b11000000) + (bg_color&63)]&63) + shadowtable[fg_color];
+}
 
 #define FONT_HEIGHT_BLOCKS (sizeof *FONT / sizeof **FONT)
 #define FONT_WIDTH_BLOCKS (sizeof **FONT)

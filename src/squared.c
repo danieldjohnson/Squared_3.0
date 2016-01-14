@@ -22,6 +22,7 @@ typedef struct {
   bool invert;
   bool monochrome;
   bool center;
+  bool btvibe;
 } Preferences;
 
 Preferences curPrefs;
@@ -39,12 +40,14 @@ enum {
     KEY_INVERT,
     KEY_MONOCHROME,
     KEY_CENTER,
+    KEY_BTVIBE,
 };
 
 #define PREFERENCES_KEY 0
 
 #define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define CENTER_DATE (curPrefs.center)
+#define DISCONNECT_VIBRATION (curPrefs.btvibe)
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
@@ -214,9 +217,11 @@ static uint8_t shadowtable[] = {192,192,192,192,192,192,192,192,192,192,192,192,
 // alpha should only be 0b??111111 where ?? = 00 (full shade), 01 (much shade), 10 (some shade), 11 (none shade)
 static uint8_t alpha = 0b10111111;
 
-uint8_t combine_colors(uint8_t bg_color, uint8_t fg_color) {
-    return (shadowtable[((~fg_color)&0b11000000) + (bg_color&63)]&63) + shadowtable[fg_color];
+/*
+uint8_t combine_colors(uint8_t fg_color, uint8_t bg_color) {
+  return (shadowtable[((~fg_color)&0b11000000) + (bg_color&63)]&63) + shadowtable[fg_color];
 }
+*/
 
 #define FONT_HEIGHT_BLOCKS (sizeof *FONT / sizeof **FONT)
 #define FONT_WIDTH_BLOCKS (sizeof **FONT)
@@ -231,7 +236,18 @@ uint8_t combine_colors(uint8_t bg_color, uint8_t fg_color) {
 
 #define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
 #define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
-	
+
+static void handle_bluetooth(bool connected) {
+  if (DISCONNECT_VIBRATION && !connected) {
+    static uint32_t const segments[] = { 200, 200, 50, 150, 200 };
+    VibePattern pat = {
+    	.durations = segments,
+    	.num_segments = ARRAY_LENGTH(segments),
+    };
+    vibes_enqueue_custom_pattern(pat);
+  }
+}
+
 static GRect slotFrame(int i) {
 	int x, y, w, h;
 	if (i<4) { // main digits
@@ -268,7 +284,7 @@ static GRect slotFrame(int i) {
     if (i%2) {
 			x = ORIGIN_X + FONT_WIDTH + SPACING_X + FONT_WIDTH + SPACING_X;
 		} else {
-			x = ORIGIN_X - FONT_WIDTH - SPACING_X;
+			x = (int) (ORIGIN_X - FONT_WIDTH - SPACING_X);
 		}
 		if (i<12) {
 			y = ORIGIN_Y;
@@ -330,7 +346,8 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
   }
   if (pos >= 8) {
     int argb_temp = shadowtable[alpha & argb];
-    if (argb_temp == 0b11000000) {
+    //int argb_temp = combine_colors(argb-0b01000000, BACKGROUND_COLOR.argb);
+    if (argb_temp == BACKGROUND_COLOR.argb) {
       argb_temp = argb;
     }
     argb = argb_temp;
@@ -536,9 +553,11 @@ static void deinitSlot(int i) {
 }
 
 static void animateDigits(struct Animation *anim, const AnimationProgress normTime) {
+  /*
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Tick! %i", (int)anim);
   }
+  */
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
@@ -592,6 +611,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *invert_t = dict_find(iter, KEY_INVERT);
   Tuple *monochrome_t = dict_find(iter, KEY_MONOCHROME);
   Tuple *center_t = dict_find(iter, KEY_CENTER);
+  Tuple *btvibe_t = dict_find(iter, KEY_BTVIBE);
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -628,6 +648,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   }
   if (center_t) {
     curPrefs.center =                 center_t->value->int8;
+  }
+  if (btvibe_t) {
+    curPrefs.btvibe =                 btvibe_t->value->int8;
   }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
@@ -672,6 +695,7 @@ static void init() {
       .invert = false,
       .monochrome = false,
       .center = false,
+      .btvibe = false,
     };
   }
   
@@ -683,11 +707,21 @@ static void init() {
   app_message_open(150,0);
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
+  
+  if (debug) {
+    light_enable(true);
+  }
+  
+  handle_bluetooth(connection_service_peek_pebble_app_connection());
+  
+  connection_service_subscribe((ConnectionHandlers) {
+    .pebble_app_connection_handler = handle_bluetooth
+  });
 }
 
 static void deinit() {
 	tick_timer_service_unsubscribe();
-  
+  connection_service_unsubscribe();
   teardownUI();
   window_destroy(window);
 }

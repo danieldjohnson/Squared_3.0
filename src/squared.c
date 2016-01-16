@@ -59,7 +59,7 @@ enum {
 #define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
-#define CONTRAST_WHILE_CHARGING (curPrefs.contrast)
+#define CONTRAST_WHILE_CHARGING PBL_IF_BW_ELSE(false, (curPrefs.contrast))
 #define LIGHT_WHILE_CHARGING (curPrefs.backlight)
 #define DISABLE_ANIM (curPrefs.nightsaver)
 #define DISABLE_ANIM_START_TIME (curPrefs.ns_start)
@@ -662,6 +662,7 @@ static void teardownUI() {
 }
 
 static void battery_handler(BatteryChargeState charge_state) {
+  #if defined(PBL_COLOR)
   if (CONTRAST_WHILE_CHARGING) {
     previous_contrastmode = contrastmode;
     if (charge_state.is_plugged) {
@@ -674,6 +675,7 @@ static void battery_handler(BatteryChargeState charge_state) {
       setupUI();
     }
   }
+  #endif
   if (LIGHT_WHILE_CHARGING) {
     if (charge_state.is_plugged) {
       light_enable(true);
@@ -759,6 +761,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
+  #if defined(PBL_COLOR)
   if (curPrefs.contrast == false) {
     contrastmode = false;
     previous_contrastmode = false;
@@ -769,6 +772,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
       previous_contrastmode = true;
     }
   }
+  #endif
   if (curPrefs.backlight == false) {
     light_enable(false);
   } else {
@@ -832,12 +836,14 @@ static void init() {
   BatteryChargeState charge_state = battery_state_service_peek();
   
   if (charge_state.is_plugged) {
+    #if defined(PBL_COLOR)
     if (CONTRAST_WHILE_CHARGING) {
       previous_contrastmode = true;
       contrastmode = true;
       teardownUI();
       setupUI();
     }
+    #endif
     if (LIGHT_WHILE_CHARGING) {
       light_enable(true);
     }

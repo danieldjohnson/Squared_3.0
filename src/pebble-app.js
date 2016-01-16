@@ -35,7 +35,10 @@ Pebble.addEventListener('webviewclosed', function(e) {
             monochrome: 0+(configData.monochrome === 'true'),
             center: 0+(configData.center === 'true'),
             btvibe: 0+(configData.btvibe === 'true'),
-            contrast: 0+(configData.contrast === 'true')
+            contrast: 0+(configData.contrast === 'true'),
+            nightsaver: 0+(configData.nightsaver === 'true'),
+            ns_start: parseInt(configData.ns_start),
+            ns_stop: parseInt(configData.ns_stop)
         }, function() {
             console.log('Send successful!');
         }, function() {

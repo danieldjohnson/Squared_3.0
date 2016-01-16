@@ -24,6 +24,10 @@ typedef struct {
   bool center;
   bool btvibe;
   bool contrast;
+  bool nightsaver;
+  int ns_start;
+  int ns_stop;
+  
 } Preferences;
 
 Preferences curPrefs;
@@ -43,6 +47,9 @@ enum {
     KEY_CENTER,
     KEY_BTVIBE,
     KEY_CONTRAST,
+    KEY_NIGHTSAVER,
+    KEY_NS_START,
+    KEY_NS_STOP,
 };
 
 #define PREFERENCES_KEY 0
@@ -51,6 +58,9 @@ enum {
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
 #define CONTRAST_WHILE_CHARGING (curPrefs.contrast)
+#define DISABLE_ANIM (curPrefs.nightsaver)
+#define DISABLE_ANIM_START_TIME (curPrefs.ns_start)
+#define DISABLE_ANIM_END_TIME (curPrefs.ns_stop)
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
@@ -241,7 +251,7 @@ uint8_t combine_colors(uint8_t fg_color, uint8_t bg_color) {
 #define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
 #define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
 
-static bool contrastmode = false, previous_contrastmode = false;
+static bool contrastmode = false, previous_contrastmode = false, allow_animate = true;
 
 static void handle_bluetooth(bool connected) {
   if (DISCONNECT_VIBRATION && !connected) {
@@ -452,11 +462,36 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       mi = 15;
       da = 12;
       mo = 3;
+      ho = get_display_hour(t->tm_hour);
+      mi = t->tm_min;
+      da = t->tm_mday;
+      mo = t->tm_mon+1;
     } else {
       ho = get_display_hour(t->tm_hour);
       mi = t->tm_min;
       da = t->tm_mday;
       mo = t->tm_mon+1;
+    }
+    
+    allow_animate = true;
+    if (DISABLE_ANIM) {
+      if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
+        // across midnight
+        if (ho >= DISABLE_ANIM_START_TIME || ho < DISABLE_ANIM_END_TIME) {
+          allow_animate = false;
+          if (debug) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "Hour %d was after %d and before %d", (int)ho, (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+          }
+        }
+      } else {
+        // prior to midnight
+        if (ho >= DISABLE_ANIM_START_TIME && ho < DISABLE_ANIM_END_TIME) {
+          allow_animate = false;
+          if (debug) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "Hour %d was after %d and before %d", (int)ho, (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+          }
+        }
+      }
     }
 
     for (i=0; i<NUMSLOTS; i++) {
@@ -587,7 +622,7 @@ static void animateDigits(struct Animation *anim, const AnimationProgress normTi
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
-			slot[i].normTime = normTime;
+      if (allow_animate) { slot[i].normTime = normTime; }
 			layer_mark_dirty(slot[i].layer);
 		}
 	}
@@ -655,6 +690,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *center_t = dict_find(iter, KEY_CENTER);
   Tuple *btvibe_t = dict_find(iter, KEY_BTVIBE);
   Tuple *contrast_t = dict_find(iter, KEY_CONTRAST);
+  Tuple *nightsaver_t = dict_find(iter, KEY_NIGHTSAVER);
+  Tuple *ns_start_t = dict_find(iter, KEY_NS_START);
+  Tuple *ns_stop_t = dict_find(iter, KEY_NS_STOP);
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -697,6 +735,15 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   }
   if (contrast_t) {
     curPrefs.contrast =               contrast_t->value->int8;
+  }
+  if (nightsaver_t) {
+    curPrefs.nightsaver =             nightsaver_t->value->int8;
+  }
+  if (ns_start_t) {
+    curPrefs.ns_start =               ns_start_t->value->int8;
+  }
+  if (ns_stop_t) {
+    curPrefs.ns_stop =                ns_stop_t->value->int8;
   }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
@@ -753,6 +800,9 @@ static void init() {
       .center = false,
       .btvibe = false,
       .contrast = false,
+      .nightsaver = false,
+      .ns_start = 0,
+      .ns_stop = 6,
     };
   }
   
@@ -770,7 +820,7 @@ static void init() {
   // Setup app message
   app_message_register_inbox_received(in_received_handler);
   app_message_register_inbox_dropped(in_dropped_handler);
-  app_message_open(150,0);
+  app_message_open(200,0);
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
   

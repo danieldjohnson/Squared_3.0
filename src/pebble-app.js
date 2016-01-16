@@ -8,10 +8,11 @@ Pebble.addEventListener('showConfiguration', function() {
       watch = Pebble.getActiveWatchInfo();
     }
     var url='http://pebble.lastfuture.de/config/squared46/';
+    url += "?model="+watch.model;
     if (watch.platform == "basalt") {
-      url += "?rect=true";
+      url += "&rect=true";
     } else if (watch.platform == "aplite") {
-      url += "?rect=true&bw=true";
+      url += "&rect=true&bw=true";
     }
     console.log('Showing configuration page: '+url);
     Pebble.openURL(url);
@@ -38,7 +39,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
             contrast: 0+(configData.contrast === 'true'),
             nightsaver: 0+(configData.nightsaver === 'true'),
             ns_start: parseInt(configData.ns_start),
-            ns_stop: parseInt(configData.ns_stop)
+            ns_stop: parseInt(configData.ns_stop),
+            backlight: 0+(configData.backlight === 'true')
         }, function() {
             console.log('Send successful!');
         }, function() {

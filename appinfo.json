@@ -1,6 +1,7 @@
 {
     "appKeys": {
         "background_color": 4,
+        "backlight": 17,
         "btvibe": 12,
         "center": 11,
         "contrast": 13,

@@ -2,7 +2,7 @@
  * Original source code by lastfuture
  * SDK 2.0beta4 port by Jnm
  * SDK 3.0 port and colorizing by hexahedria
- * adaptations for Chalk and Aplite by lastfuture
+ * adaptations for Chalk and Aplite as well as continued development by lastfuture
  */
 
 #include <pebble.h>
@@ -27,6 +27,7 @@ typedef struct {
   bool nightsaver;
   int ns_start;
   int ns_stop;
+  bool backlight;
   
 } Preferences;
 
@@ -50,6 +51,7 @@ enum {
     KEY_NIGHTSAVER,
     KEY_NS_START,
     KEY_NS_STOP,
+    KEY_BACKLIGHT,
 };
 
 #define PREFERENCES_KEY 0
@@ -58,6 +60,7 @@ enum {
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
 #define CONTRAST_WHILE_CHARGING (curPrefs.contrast)
+#define LIGHT_WHILE_CHARGING (curPrefs.backlight)
 #define DISABLE_ANIM (curPrefs.nightsaver)
 #define DISABLE_ANIM_START_TIME (curPrefs.ns_start)
 #define DISABLE_ANIM_END_TIME (curPrefs.ns_stop)
@@ -457,21 +460,15 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       animation_unschedule(anim);
       animation_destroy(anim);
     }
+    ho = get_display_hour(t->tm_hour);
+    mi = t->tm_min;
+    da = t->tm_mday;
+    mo = t->tm_mon+1;
     if (debug) {
-      ho = 5;
-      mi = 15;
-      da = 12;
-      mo = 3;
-      ho = get_display_hour(t->tm_hour);
-      mi = t->tm_min;
-      da = t->tm_mday;
-      mo = t->tm_mon+1;
-    } else {
-      ho = get_display_hour(t->tm_hour);
-      mi = t->tm_min;
-      da = t->tm_mday;
-      mo = t->tm_mon+1;
+      ho = 9;
     }
+    
+    APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
     
     allow_animate = true;
     if (DISABLE_ANIM) {
@@ -536,7 +533,7 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       if (debug) {
         APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d", (int) slot[0].prevDigit);
       }
-      if (slot[0].curDigit == 0 || slot[0].prevDigit >= 10) {
+      if (ho < 10 && slot[0].prevDigit >= 10) {
         if (NUMSLOTS > 8) {
           if (debug) {
             APP_LOG(APP_LOG_LEVEL_INFO, "More than 8 slots");
@@ -622,7 +619,11 @@ static void animateDigits(struct Animation *anim, const AnimationProgress normTi
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
-      if (allow_animate) { slot[i].normTime = normTime; }
+      if (allow_animate) {
+        slot[i].normTime = normTime;
+      } else {
+        slot[i].normTime = ANIMATION_NORMALIZED_MAX;
+      }
 			layer_mark_dirty(slot[i].layer);
 		}
 	}
@@ -673,6 +674,13 @@ static void battery_handler(BatteryChargeState charge_state) {
       setupUI();
     }
   }
+  if (LIGHT_WHILE_CHARGING) {
+    if (charge_state.is_plugged) {
+      light_enable(true);
+    } else {
+      light_enable(false);
+    }
+  }
 }
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
@@ -693,6 +701,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *nightsaver_t = dict_find(iter, KEY_NIGHTSAVER);
   Tuple *ns_start_t = dict_find(iter, KEY_NS_START);
   Tuple *ns_stop_t = dict_find(iter, KEY_NS_STOP);
+  Tuple *backlight_t = dict_find(iter, KEY_BACKLIGHT);
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -745,6 +754,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (ns_stop_t) {
     curPrefs.ns_stop =                ns_stop_t->value->int8;
   }
+  if (backlight_t) {
+    curPrefs.backlight =              backlight_t->value->int8;
+  }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
   if (curPrefs.contrast == false) {
@@ -755,6 +767,14 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
     if (charge_state.is_plugged) {
       contrastmode = true;
       previous_contrastmode = true;
+    }
+  }
+  if (curPrefs.backlight == false) {
+    light_enable(false);
+  } else {
+    BatteryChargeState charge_state = battery_state_service_peek();
+    if (charge_state.is_plugged) {
+      light_enable(true);
     }
   }
   if (debug) {
@@ -803,6 +823,7 @@ static void init() {
       .nightsaver = false,
       .ns_start = 0,
       .ns_stop = 6,
+      .backlight = false,
     };
   }
   
@@ -811,10 +832,15 @@ static void init() {
   BatteryChargeState charge_state = battery_state_service_peek();
   
   if (charge_state.is_plugged) {
-    previous_contrastmode = true;
-    contrastmode = true;
-    teardownUI();
-    setupUI();
+    if (CONTRAST_WHILE_CHARGING) {
+      previous_contrastmode = true;
+      contrastmode = true;
+      teardownUI();
+      setupUI();
+    }
+    if (LIGHT_WHILE_CHARGING) {
+      light_enable(true);
+    }
   }
   
   // Setup app message
@@ -825,7 +851,7 @@ static void init() {
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
   
   if (debug) {
-    light_enable(true);
+    //light_enable(true);
   }
   
   handle_bluetooth(connection_service_peek_pebble_app_connection());

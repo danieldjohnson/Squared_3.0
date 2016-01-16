@@ -7,7 +7,7 @@ Pebble.addEventListener('showConfiguration', function() {
     if(Pebble.getActiveWatchInfo) {
       watch = Pebble.getActiveWatchInfo();
     }
-    var url='http://pebble.lastfuture.de/config/squared45/';
+    var url='http://pebble.lastfuture.de/config/squared46/';
     if (watch.platform == "basalt") {
       url += "?rect=true";
     } else if (watch.platform == "aplite") {
@@ -34,7 +34,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
             invert: 0+(configData.invert === 'true'),
             monochrome: 0+(configData.monochrome === 'true'),
             center: 0+(configData.center === 'true'),
-            btvibe: 0+(configData.btvibe === 'true')
+            btvibe: 0+(configData.btvibe === 'true'),
+            contrast: 0+(configData.contrast === 'true')
         }, function() {
             console.log('Send successful!');
         }, function() {

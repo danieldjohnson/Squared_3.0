@@ -3,6 +3,7 @@
         "background_color": 4,
         "btvibe": 12,
         "center": 11,
+        "contrast": 13,
         "eu_date": 1,
         "invert": 9,
         "large_mode": 0,
@@ -31,7 +32,7 @@
         "chalk"
     ],
     "uuid": "793bab03-9464-48a2-b63f-3f779c473db8",
-    "versionLabel": "4.5",
+    "versionLabel": "4.6",
     "watchapp": {
         "watchface": true
     }

@@ -23,6 +23,7 @@ typedef struct {
   bool monochrome;
   bool center;
   bool btvibe;
+  bool contrast;
 } Preferences;
 
 Preferences curPrefs;
@@ -41,6 +42,7 @@ enum {
     KEY_MONOCHROME,
     KEY_CENTER,
     KEY_BTVIBE,
+    KEY_CONTRAST,
 };
 
 #define PREFERENCES_KEY 0
@@ -48,6 +50,7 @@ enum {
 #define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
+#define CONTRAST_WHILE_CHARGING (curPrefs.contrast)
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
 #define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
@@ -62,11 +65,11 @@ enum {
 #define ORNAMENT_BASE_COLOR_ARGB8 (curPrefs.ornament_base_color)
 #define NUMBER_ADD_VARIATION      (curPrefs.number_variation)
 #define ORNAMENT_ADD_VARIATION    (curPrefs.ornament_variation)
-  
+
 #define BACKGROUND_COLOR    PBL_IF_BW_ELSE((INVERT ? GColorWhite : GColorBlack), ((GColor8) { .argb = curPrefs.background_color }))
 
 #define FONT blocks
-	
+
 typedef struct {
 	Layer *layer;
 	int   prevDigit;
@@ -75,7 +78,6 @@ typedef struct {
 	AnimationProgress normTime;
   int   slotIndex;
 } digitSlot;
-
 
 digitSlot slot[NUMSLOTS];
 
@@ -198,22 +200,24 @@ unsigned char variation[] = {
   0b00000000, 0b00000001, 0b00010001, 0b00000101, 0b00010100
 };
 
-static uint8_t shadowtable[] = {192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
-                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
-                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
-                                192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192, \
-                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
-                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
-                                192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197, \
-                                208,208,208,209,208,208,208,209,208,208,208,209,212,212,212,213, \
-                                192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202, \
-                                192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202, \
-                                208,208,209,210,208,208,209,210,212,212,213,214,216,216,217,218, \
-                                224,224,225,226,224,224,225,226,228,228,229,230,232,232,233,234, \
-                                192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207, \
-                                208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223, \
-                                224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239, \
-                                240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255};
+static uint8_t shadowtable[] = {
+  192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,
+  192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,
+  192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,
+  192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,192,
+  192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197,
+  192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197,
+  192,192,192,193,192,192,192,193,192,192,192,193,196,196,196,197,
+  208,208,208,209,208,208,208,209,208,208,208,209,212,212,212,213,
+  192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202,
+  192,192,193,194,192,192,193,194,196,196,197,198,200,200,201,202,
+  208,208,209,210,208,208,209,210,212,212,213,214,216,216,217,218,
+  224,224,225,226,224,224,225,226,228,228,229,230,232,232,233,234,
+  192,193,194,195,196,197,198,199,200,201,202,203,204,205,206,207,
+  208,209,210,211,212,213,214,215,216,217,218,219,220,221,222,223,
+  224,225,226,227,228,229,230,231,232,233,234,235,236,237,238,239,
+  240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
+};
 // alpha should only be 0b??111111 where ?? = 00 (full shade), 01 (much shade), 10 (some shade), 11 (none shade)
 static uint8_t alpha = 0b10111111;
 
@@ -236,6 +240,8 @@ uint8_t combine_colors(uint8_t fg_color, uint8_t bg_color) {
 
 #define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
 #define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
+
+static bool contrastmode = false, previous_contrastmode = false;
 
 static void handle_bluetooth(bool connected) {
   if (DISCONNECT_VIBRATION && !connected) {
@@ -313,11 +319,18 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
   int argb;
   bool should_add_var = false;
   if (FONT[digit][y][x] == 0) {
+    if (contrastmode) {
+      return GColorBlack;
+    }
     return BACKGROUND_COLOR;
   } else if (FONT[digit][y][x] == 1) {
     #if defined(PBL_COLOR)
-      argb = NUMBER_BASE_COLOR_ARGB8;
-      should_add_var = NUMBER_ADD_VARIATION;
+      if (contrastmode && pos >= 8) {
+        argb = 0b11000000;
+      } else {
+        argb = contrastmode ? 0b11111111 : NUMBER_BASE_COLOR_ARGB8;
+        should_add_var = contrastmode ? false : NUMBER_ADD_VARIATION;
+      }
     #elif defined(PBL_BW)
       if (!INVERT) {
         argb = 0b11111111;
@@ -327,8 +340,8 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
     #endif
   } else {
     #if defined(PBL_COLOR)
-      argb = ORNAMENT_BASE_COLOR_ARGB8;
-      should_add_var = ORNAMENT_ADD_VARIATION;
+      argb = contrastmode ? 0b11000000 : ORNAMENT_BASE_COLOR_ARGB8;
+      should_add_var = contrastmode ? false : ORNAMENT_ADD_VARIATION;
     #elif defined(PBL_BW)
       if (GREYS) {
         argb = 0b11010101;
@@ -346,7 +359,6 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
   }
   if (pos >= 8) {
     int argb_temp = shadowtable[alpha & argb];
-    //int argb_temp = combine_colors(argb-0b01000000, BACKGROUND_COLOR.argb);
     if (argb_temp == BACKGROUND_COLOR.argb) {
       argb_temp = argb;
     }
@@ -369,7 +381,7 @@ static void updateSlot(Layer *layer, GContext *ctx) {
 	uint32_t skewedNormTime = slot->normTime*3;
 	GRect r;
 	
-	graphics_context_set_fill_color(ctx, BACKGROUND_COLOR);
+  graphics_context_set_fill_color(ctx, contrastmode ? GColorBlack : BACKGROUND_COLOR);
 	r = layer_get_bounds(slot->layer);
 	graphics_fill_rect(ctx, GRect(0, 0, r.size.w, r.size.h), 0, GCornerNone);
 	for (t=0; t<total; t++) {
@@ -411,7 +423,7 @@ static void setupAnimation() {
   }
   anim = animation_create();
 	animation_set_delay(anim, 0);
-	animation_set_duration(anim, DIGIT_CHANGE_ANIM_DURATION);
+	animation_set_duration(anim, contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
   animation_set_curve(anim, AnimationCurveEaseInOut);
   if (debug) {
@@ -486,11 +498,30 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     }
 
     if (NO_ZERO) {
-      if (slot[0].curDigit == 0) {
-        slot[0].curDigit = 10;
-        if (slot[0].prevDigit == 10) {
-          slot[0].curDigit++;
+      if (debug) {
+        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d", (int) slot[0].prevDigit);
+      }
+      if (slot[0].curDigit == 0 || slot[0].prevDigit >= 10) {
+        if (NUMSLOTS > 8) {
+          if (debug) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "More than 8 slots");
+          }
+          if (slot[10].prevDigit != 10 && slot[10].prevDigit < 12) {
+            slot[0].curDigit = 11;
+          } else {
+            slot[0].curDigit = 10;
+          }
+        } else {
+          if (debug) {
+            APP_LOG(APP_LOG_LEVEL_INFO, "8 slots or fewer");
+          }
+          if (slot[0].prevDigit == 10) {
+            slot[0].curDigit = 11;
+          } else {
+            slot[0].curDigit = 10;
+          }
         }
+        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 is now %d", (int) slot[0].curDigit);
       }
       if (slot[4].curDigit == 0) {
         slot[4].curDigit = 10;
@@ -553,11 +584,6 @@ static void deinitSlot(int i) {
 }
 
 static void animateDigits(struct Animation *anim, const AnimationProgress normTime) {
-  /*
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Tick! %i", (int)anim);
-  }
-  */
 	int i;
 	for (i=0; i<NUMSLOTS; i++) {
 		if (slot[i].curDigit != slot[i].prevDigit) {
@@ -570,8 +596,9 @@ static void animateDigits(struct Animation *anim, const AnimationProgress normTi
 static void setupUI() {
   Layer *rootLayer;
 	int i;
-
-	window_set_background_color(window, BACKGROUND_COLOR);
+  
+  window_set_background_color(window, contrastmode ? GColorBlack : BACKGROUND_COLOR);
+	
 	window_stack_push(window, true);
 
 	rootLayer = window_get_root_layer(window);
@@ -586,7 +613,7 @@ static void setupUI() {
 
 	setupAnimation();
 
-	app_timer_register(STARTDELAY, handle_timer, NULL);
+	app_timer_register(contrastmode ? 0 : STARTDELAY, handle_timer, NULL);
 }
 
 static void teardownUI() {
@@ -596,6 +623,21 @@ static void teardownUI() {
 	}
 	
 	animation_destroy(anim);
+}
+
+static void battery_handler(BatteryChargeState charge_state) {
+  if (CONTRAST_WHILE_CHARGING) {
+    previous_contrastmode = contrastmode;
+    if (charge_state.is_charging) {
+      contrastmode = true;
+    } else {
+      contrastmode = false;
+    }
+    if (previous_contrastmode != contrastmode) {
+      teardownUI();
+      setupUI();
+    }
+  }
 }
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
@@ -612,6 +654,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *monochrome_t = dict_find(iter, KEY_MONOCHROME);
   Tuple *center_t = dict_find(iter, KEY_CENTER);
   Tuple *btvibe_t = dict_find(iter, KEY_BTVIBE);
+  Tuple *contrast_t = dict_find(iter, KEY_CONTRAST);
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -652,8 +695,21 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (btvibe_t) {
     curPrefs.btvibe =                 btvibe_t->value->int8;
   }
+  if (contrast_t) {
+    curPrefs.contrast =               contrast_t->value->int8;
+  }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
+  if (curPrefs.contrast == false) {
+    contrastmode = false;
+    previous_contrastmode = false;
+  } else {
+    BatteryChargeState charge_state = battery_state_service_peek();
+    if (charge_state.is_charging) {
+      contrastmode = true;
+      previous_contrastmode = true;
+    }
+  }
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
   }
@@ -696,10 +752,20 @@ static void init() {
       .monochrome = false,
       .center = false,
       .btvibe = false,
+      .contrast = false,
     };
   }
   
   setupUI();
+  
+  BatteryChargeState charge_state = battery_state_service_peek();
+  
+  if (charge_state.is_charging) {
+    previous_contrastmode = true;
+    contrastmode = true;
+    teardownUI();
+    setupUI();
+  }
   
   // Setup app message
   app_message_register_inbox_received(in_received_handler);
@@ -714,6 +780,8 @@ static void init() {
   
   handle_bluetooth(connection_service_peek_pebble_app_connection());
   
+  battery_state_service_subscribe(battery_handler);
+  
   connection_service_subscribe((ConnectionHandlers) {
     .pebble_app_connection_handler = handle_bluetooth
   });
@@ -722,6 +790,7 @@ static void init() {
 static void deinit() {
 	tick_timer_service_unsubscribe();
   connection_service_unsubscribe();
+  battery_state_service_unsubscribe();
   teardownUI();
   window_destroy(window);
 }

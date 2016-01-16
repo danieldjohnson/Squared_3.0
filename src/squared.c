@@ -350,7 +350,7 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
     #endif
   } else {
     #if defined(PBL_COLOR)
-      argb = contrastmode ? 0b11000000 : ORNAMENT_BASE_COLOR_ARGB8;
+      argb = contrastmode ? 0b11000001 : ORNAMENT_BASE_COLOR_ARGB8;
       should_add_var = contrastmode ? false : ORNAMENT_ADD_VARIATION;
     #elif defined(PBL_BW)
       if (GREYS) {
@@ -663,7 +663,7 @@ static void teardownUI() {
 static void battery_handler(BatteryChargeState charge_state) {
   if (CONTRAST_WHILE_CHARGING) {
     previous_contrastmode = contrastmode;
-    if (charge_state.is_charging) {
+    if (charge_state.is_plugged) {
       contrastmode = true;
     } else {
       contrastmode = false;
@@ -752,7 +752,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
     previous_contrastmode = false;
   } else {
     BatteryChargeState charge_state = battery_state_service_peek();
-    if (charge_state.is_charging) {
+    if (charge_state.is_plugged) {
       contrastmode = true;
       previous_contrastmode = true;
     }
@@ -810,7 +810,7 @@ static void init() {
   
   BatteryChargeState charge_state = battery_state_service_peek();
   
-  if (charge_state.is_charging) {
+  if (charge_state.is_plugged) {
     previous_contrastmode = true;
     contrastmode = true;
     teardownUI();

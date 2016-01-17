@@ -1,5 +1,28 @@
+String.prototype.hashCode = function(){
+    var hash = 0;
+    if (this.length === 0) return hash;
+    for (var i = 0; i < this.length; i++) {
+        var char = this.charCodeAt(i);
+        hash = ((hash<<5)-hash)+char;
+        hash = hash & hash; // Convert to 32bit integer
+    }
+    return hash;
+};
+
+var debugwatches = Array(1568511776, 1135189913, -826258655);
+
 Pebble.addEventListener('ready', function() {
-    console.log('PebbleKit JS ready!');
+  console.log('PebbleKit JS ready!');
+  var tokenhash = Pebble.getWatchToken().hashCode();
+  console.log('Watch identifier '+tokenhash);
+  if (debugwatches.indexOf(tokenhash) > -1) {
+    var dict = {"debugwatch": 1};
+    Pebble.sendAppMessage(dict);    
+  }
+});
+
+Pebble.addEventListener('appmessage', function() {
+  console.log('got appmessage');
 });
 
 Pebble.addEventListener('showConfiguration', function() {

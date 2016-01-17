@@ -54,6 +54,8 @@ enum {
     KEY_BACKLIGHT,
 };
 
+#define KEY_DEBUGWATCH 50
+
 #define PREFERENCES_KEY 0
 
 #define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
@@ -188,7 +190,6 @@ unsigned char blocks[][5][5] =  {{
 int startDigit[18] = {
 	11,12,12,11,11,12,10,13,12,11,12,11,11,12,10,13,12,10 // 2x h, 2x m, 4x date, 2x filler top, 4x filler sides, 2x filler bottom, 2x filler bottom sides
 };
-
 
 unsigned char variation[] = {
   0b00000000, 0b00010000, 0b00000100, 0b00010000, 0b00000000,
@@ -465,21 +466,26 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     da = t->tm_mday;
     mo = t->tm_mon+1;
     if (debug) {
-      ho = 9;
+      //ho = 9;
     }
     
-    APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
+    if (debug) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
+    }
     
     allow_animate = true;
     if (DISABLE_ANIM) {
       if (DISABLE_ANIM_START_TIME == DISABLE_ANIM_END_TIME) {
         allow_animate = false;
+        if (debug) {
+          APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because activation and deactivation times are the same");
+        }
       } else if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
         // across midnight
         if (ho >= DISABLE_ANIM_START_TIME || ho < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "Hour %d was after %d and before %d", (int)ho, (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+            APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
           }
         }
       } else {
@@ -487,7 +493,7 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
         if (ho >= DISABLE_ANIM_START_TIME && ho < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "Hour %d was after %d and before %d", (int)ho, (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+            APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
           }
         }
       }
@@ -555,7 +561,9 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
             slot[0].curDigit = 10;
           }
         }
-        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 is now %d", (int) slot[0].curDigit);
+        if (debug) {
+          APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 is now %d", (int) slot[0].curDigit);
+        }
       }
       if (slot[4].curDigit == 0) {
         slot[4].curDigit = 10;
@@ -706,6 +714,19 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *ns_start_t = dict_find(iter, KEY_NS_START);
   Tuple *ns_stop_t = dict_find(iter, KEY_NS_STOP);
   Tuple *backlight_t = dict_find(iter, KEY_BACKLIGHT);
+  Tuple *debug_t = dict_find(iter, KEY_DEBUGWATCH);
+  
+  bool was_config = true;
+  
+  if (debug_t) {
+    if (debug_t->value->int8 == 1) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "Enabling debug infos for debug watch");
+      debug = true;
+      was_config = false;
+    }
+  }
+  
+  if (was_config) {
   
   if (large_mode_t) {
     curPrefs.large_mode =             large_mode_t->value->int8;
@@ -794,17 +815,16 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Done");
   }
+  
+  }
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_WARNING, "Dropped a message because %i", (int)reason);
 }
 
-static void init() {
-  if (watch_info_get_model()==WATCH_INFO_MODEL_UNKNOWN) {
-    debug = true;
-  }
-  
+
+static void init() {  
   window = window_create();
   
   // Set up preferences
@@ -857,10 +877,6 @@ static void init() {
   app_message_open(200,0);
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
-  
-  if (debug) {
-    //light_enable(true);
-  }
   
   handle_bluetooth(connection_service_peek_pebble_app_connection());
   

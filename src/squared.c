@@ -472,7 +472,9 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     
     allow_animate = true;
     if (DISABLE_ANIM) {
-      if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
+      if (DISABLE_ANIM_START_TIME == DISABLE_ANIM_END_TIME) {
+        allow_animate = false;
+      } else if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
         // across midnight
         if (ho >= DISABLE_ANIM_START_TIME || ho < DISABLE_ANIM_END_TIME) {
           allow_animate = false;

@@ -28,6 +28,7 @@ typedef struct {
   int ns_start;
   int ns_stop;
   bool backlight;
+  bool weekday;
   
 } Preferences;
 
@@ -52,13 +53,17 @@ enum {
     KEY_NS_START,
     KEY_NS_STOP,
     KEY_BACKLIGHT,
+    KEY_WEEKDAY,
 };
 
 #define KEY_DEBUGWATCH 50
 
 #define PREFERENCES_KEY 0
 
-#define US_DATE (!curPrefs.eu_date) // true == MM/DD, false == DD/MM
+#define SCREENSHOTMODE false
+
+#define EU_DATE (curPrefs.eu_date) // true == MM/DD, false == DD/MM
+#define WEEKDAY (curPrefs.weekday)
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
 #define CONTRAST_WHILE_CHARGING PBL_IF_BW_ELSE(false, (curPrefs.contrast))
@@ -73,8 +78,8 @@ enum {
 #define NUMSLOTS PBL_IF_RECT_ELSE(8, 18)
 #define SPACING_X TILE_SIZE
 #define SPACING_Y (curPrefs.large_mode ? TILE_SIZE - 1 : TILE_SIZE)
-#define DIGIT_CHANGE_ANIM_DURATION 1500
-#define STARTDELAY (curPrefs.quick_start ? 1000 : 2000)
+#define DIGIT_CHANGE_ANIM_DURATION (curPrefs.quick_start ? 1500 : 2000)
+#define STARTDELAY (curPrefs.quick_start ? 700 : 2000)
 
 #define NUMBER_BASE_COLOR_ARGB8   (curPrefs.number_base_color)
 #define ORNAMENT_BASE_COLOR_ARGB8 (curPrefs.ornament_base_color)
@@ -84,17 +89,21 @@ enum {
 #define BACKGROUND_COLOR    PBL_IF_BW_ELSE((INVERT ? GColorWhite : GColorBlack), ((GColor8) { .argb = curPrefs.background_color }))
 
 #define FONT blocks
+#define ALPHAFONT alphablocks
 
 typedef struct {
 	Layer *layer;
 	int   prevDigit;
 	int   curDigit;
+	bool  isalpha;
 	int   divider;
 	AnimationProgress normTime;
   int   slotIndex;
 } digitSlot;
 
 digitSlot slot[NUMSLOTS];
+
+static char weekday_buffer[16];
 
 AnimationImplementation animImpl;
 Animation *anim;
@@ -185,7 +194,163 @@ unsigned char blocks[][5][5] =  {{
 	{1,0,1,0,1},
 	{1,0,1,0,1},
 	{1,0,1,0,1}
+}, {
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1}
+},
+[99] = {
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1}
 }};
+
+unsigned char alphablocks[][5][5] =  {
+[65] = { // A
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1}
+},
+[68] = { // D
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,0}
+},
+[69] = { // E
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,0},
+	{1,0,0,0,0},
+	{1,1,1,1,1}
+},
+[70] = { // F
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,0},
+	{1,0,0,0,0},
+	{1,0,2,2,2}
+},
+[72] = { // H
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1}
+},
+[73] = { // I
+	{1,1,1,1,1},
+	{0,0,1,0,0},
+	{2,0,1,0,2},
+	{0,0,1,0,0},
+	{1,1,1,1,1}
+},
+[74] = { // J
+	{2,0,1,1,1},
+	{0,0,0,0,1},
+	{2,2,2,0,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1}
+},
+[76] = { // L
+	{1,0,2,0,2},
+	{1,0,2,0,2},
+	{1,0,2,0,2},
+	{1,0,0,0,0},
+	{1,1,1,1,1}
+},
+[77] = { // M
+	{1,1,1,1,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1}
+},
+[79] = { // O
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
+},
+[82] = { // R
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1},
+	{1,0,0,1,0},
+	{1,0,2,0,1}
+},
+[83] = { // S
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1}
+},
+[84] = { // T
+	{1,1,1,1,1},
+	{0,0,1,0,0},
+	{2,0,1,0,2},
+	{2,0,1,0,2},
+	{2,0,1,0,2}
+},
+[85] = { // U
+	{1,0,2,0,1},
+	{1,0,2,0,1},
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
+},
+[86] = { // V
+	{1,0,2,0,1},
+	{1,0,2,0,1},
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,0}
+},
+[87] = { // W
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,1,1,1,1}
+},
+[10] = {
+	{2,2,2,2,2},
+	{0,0,0,0,0},
+	{2,2,2,2,2},
+	{0,0,0,0,0},
+	{2,2,2,2,2}
+},
+[11] = {
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2}
+},
+[12] = {
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1}
+},
+[13] = {
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1}
+}};
+
 
 int startDigit[18] = {
 	11,12,12,11,11,12,10,13,12,11,12,11,11,12,10,13,12,10 // 2x h, 2x m, 4x date, 2x filler top, 4x filler sides, 2x filler bottom, 2x filler bottom sides
@@ -255,7 +420,7 @@ uint8_t combine_colors(uint8_t fg_color, uint8_t bg_color) {
 #define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
 #define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
 
-static bool contrastmode = false, previous_contrastmode = false, allow_animate = true;
+static bool contrastmode = false, previous_contrastmode = false, allow_animate = true, initial_anim = false;
 
 static void handle_bluetooth(bool connected) {
   if (DISCONNECT_VIBRATION && !connected) {
@@ -329,15 +494,22 @@ static GRect slotFrame(int i) {
 	return GRect(x, y, w, h);
 }
 
-static GColor8 getSlotColor(int x, int y, int digit, int pos) {
+static GColor8 getSlotColor(int x, int y, int digit, int pos, bool isalpha) {
   int argb;
   bool should_add_var = false;
-  if (FONT[digit][y][x] == 0) {
+  int thisrect = FONT[digit][y][x];
+  if (isalpha) {
+    thisrect = ALPHAFONT[digit][y][x];
+  }
+  if (SCREENSHOTMODE) {
+    thisrect = FONT[99][y][x];
+  }
+  if (thisrect == 0) {
     if (contrastmode) {
       return GColorBlack;
     }
     return BACKGROUND_COLOR;
-  } else if (FONT[digit][y][x] == 1) {
+  } else if (thisrect == 1) {
     #if defined(PBL_COLOR)
       if (contrastmode && pos >= 8) {
         argb = 0b11000000;
@@ -369,7 +541,11 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos) {
     #endif
   }
   if (should_add_var) {
-    argb += variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
+    if (argb == 0b11111111) {
+      argb -= variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
+    } else {
+      argb += variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
+    }
   }
   if (pos >= 8) {
     int argb_temp = shadowtable[alpha & argb];
@@ -404,8 +580,8 @@ static void updateSlot(Layer *layer, GContext *ctx) {
 		ty = t / FONT_HEIGHT_BLOCKS;
 		shift = 0-(t-ty);
     
-    GColor8 oldColor = getSlotColor(tx, ty, slot->prevDigit, slot->slotIndex);
-    GColor8 newColor = getSlotColor(tx, ty, slot->curDigit, slot->slotIndex);
+    GColor8 oldColor = getSlotColor(tx, ty, slot->prevDigit, slot->slotIndex, slot->isalpha);
+    GColor8 newColor = getSlotColor(tx, ty, slot->curDigit, slot->slotIndex, slot->isalpha);
     
 	  graphics_context_set_fill_color(ctx, oldColor);
     graphics_fill_rect(ctx, GRect((tx*tilesize)-(tx*widthadjust), ty*tilesize-(ty*widthadjust), tilesize-widthadjust, tilesize-widthadjust), 0, GCornerNone);
@@ -456,7 +632,7 @@ static void destroyAnimation() {
 void handle_tick(struct tm *t, TimeUnits units_changed) {
 	int ho, mi, da, mo, i;
 
-  if (splashEnded) {
+  if (splashEnded && !initial_anim) {
     if (animation_is_scheduled(anim)){
       animation_unschedule(anim);
       animation_destroy(anim);
@@ -469,8 +645,23 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       //ho = 9;
     }
     
+    if (WEEKDAY) {
+      strftime(weekday_buffer, sizeof(weekday_buffer), "%a", t);
+      for (int i=0; i<2; i++) {
+        if ((int) weekday_buffer[i] == 225) { // á
+          weekday_buffer[i] = 65; // A
+        }
+        if ((int) weekday_buffer[i] > 90) { // lower case
+          weekday_buffer[i] =weekday_buffer[i]-0x20; // make upper case
+        }
+      }
+    }
+
     if (debug) {
       APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
+      if (WEEKDAY) {
+        APP_LOG(APP_LOG_LEVEL_INFO, "The Weekday is %c%c", weekday_buffer[0], weekday_buffer[1]);
+      }
     }
     
     allow_animate = true;
@@ -507,9 +698,22 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     slot[1].curDigit = ho%10;
     slot[2].curDigit = mi/10;
     slot[3].curDigit = mi%10;
-    if (US_DATE) {
-      slot[4].curDigit = mo/10;
-      slot[5].curDigit = mo%10;
+    
+    slot[4].isalpha = false;
+    slot[5].isalpha = false;
+    slot[6].isalpha = false;
+    slot[7].isalpha = false;
+    
+    if (!EU_DATE) {
+      if (WEEKDAY) {
+        slot[4].isalpha = true;
+        slot[5].isalpha = true;
+        slot[4].curDigit = (int) weekday_buffer[0];
+        slot[5].curDigit = (int) weekday_buffer[1];
+      } else {
+        slot[4].curDigit = mo/10;
+        slot[5].curDigit = mo%10;
+      }
       if (CENTER_DATE && da < 10) {
         slot[6].curDigit = da%10;
         if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
@@ -524,19 +728,26 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     } else {
       slot[4].curDigit = da/10;
       slot[5].curDigit = da%10;
-      if (CENTER_DATE && mo < 10) {
-        slot[6].curDigit = mo%10;
-        if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
-          slot[7].curDigit = 11;
-        } else {
-          slot[7].curDigit = 10;
-        }
+      if (WEEKDAY) {
+        slot[6].isalpha = true;
+        slot[7].isalpha = true;
+        slot[6].curDigit = (int) weekday_buffer[0];
+        slot[7].curDigit = (int) weekday_buffer[1];
       } else {
-        slot[6].curDigit = mo/10;
-        slot[7].curDigit = mo%10;
+        if (CENTER_DATE && mo < 10) {
+          slot[6].curDigit = mo%10;
+          if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
+            slot[7].curDigit = 11;
+          } else {
+            slot[7].curDigit = 10;
+          }
+        } else {
+          slot[6].curDigit = mo/10;
+          slot[7].curDigit = mo%10;
+        }
       }
     }
-
+    
     if (NO_ZERO) {
       if (debug) {
         APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d", (int) slot[0].prevDigit);
@@ -592,6 +803,13 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
   }
 }
 
+static void initialAnimationDone() {
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Stopped initial Animation");
+  }
+  initial_anim = false;
+}
+
 void handle_timer(void *data) {
 	time_t curTime;
 	
@@ -599,6 +817,15 @@ void handle_timer(void *data) {
 
   curTime = time(NULL);
   handle_tick(localtime(&curTime), SECOND_UNIT|MINUTE_UNIT|HOUR_UNIT|DAY_UNIT|MONTH_UNIT|YEAR_UNIT);
+  initial_anim = true;
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Starting initial Animation");
+  }
+  if (initial_anim) {
+    app_timer_register(contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION, initialAnimationDone, NULL);
+  }
+
+
 }
 
 
@@ -714,6 +941,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *ns_start_t = dict_find(iter, KEY_NS_START);
   Tuple *ns_stop_t = dict_find(iter, KEY_NS_STOP);
   Tuple *backlight_t = dict_find(iter, KEY_BACKLIGHT);
+  Tuple *weekday_t = dict_find(iter, KEY_WEEKDAY);
   Tuple *debug_t = dict_find(iter, KEY_DEBUGWATCH);
   
   bool was_config = true;
@@ -782,6 +1010,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (backlight_t) {
     curPrefs.backlight =              backlight_t->value->int8;
   }
+  if (weekday_t) {
+    curPrefs.weekday =                weekday_t->value->int8;
+  }
   persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
   vibes_short_pulse();
   #if defined(PBL_COLOR)
@@ -824,7 +1055,8 @@ static void in_dropped_handler(AppMessageResult reason, void *context) {
 }
 
 
-static void init() {  
+static void init() {
+  setlocale(LC_ALL, "en_US");
   window = window_create();
   
   // Set up preferences
@@ -850,6 +1082,7 @@ static void init() {
       .ns_start = 0,
       .ns_stop = 6,
       .backlight = false,
+      .weekday = false,
     };
   }
   

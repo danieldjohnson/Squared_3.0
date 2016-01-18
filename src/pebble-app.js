@@ -9,7 +9,7 @@ String.prototype.hashCode = function(){
     return hash;
 };
 
-var debugwatches = Array(1568511776, 1135189913, -826258655);
+var debugwatches = Array(/*1568511776, */1135189913, -826258655);
 
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready!');
@@ -30,7 +30,7 @@ Pebble.addEventListener('showConfiguration', function() {
     if(Pebble.getActiveWatchInfo) {
       watch = Pebble.getActiveWatchInfo();
     }
-    var url='http://pebble.lastfuture.de/config/squared46/';
+    var url='http://pebble.lastfuture.de/config/squared48/';
     url += "?model="+watch.model;
     if (watch.platform == "basalt") {
       url += "&rect=true";
@@ -63,7 +63,8 @@ Pebble.addEventListener('webviewclosed', function(e) {
             nightsaver: 0+(configData.nightsaver === 'true'),
             ns_start: parseInt(configData.ns_start),
             ns_stop: parseInt(configData.ns_stop),
-            backlight: 0+(configData.backlight === 'true')
+            backlight: 0+(configData.backlight === 'true'),
+            weekday: 0+(configData.weekday === 'true')
         }, function() {
             console.log('Send successful!');
         }, function() {

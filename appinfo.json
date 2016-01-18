@@ -18,7 +18,8 @@
         "number_variation": 6,
         "ornament_base_color": 7,
         "ornament_variation": 8,
-        "quick_start": 2
+        "quick_start": 2,
+        "weekday": 18
     },
     "capabilities": [
         "configurable"
@@ -37,7 +38,7 @@
         "chalk"
     ],
     "uuid": "793bab03-9464-48a2-b63f-3f779c473db8",
-    "versionLabel": "4.7",
+    "versionLabel": "4.8",
     "watchapp": {
         "watchface": true
     }

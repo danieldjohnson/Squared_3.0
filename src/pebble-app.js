@@ -9,11 +9,12 @@ String.prototype.hashCode = function(){
     return hash;
 };
 
-var debugwatches = Array(/*1568511776, */1135189913, -826258655);
+var debugwatches = Array(1568511776, 1135189913, -826258655);
+var tokenhash;
 
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready!');
-  var tokenhash = Pebble.getWatchToken().hashCode();
+  tokenhash = Pebble.getWatchToken().hashCode();
   console.log('Watch identifier '+tokenhash);
   if (debugwatches.indexOf(tokenhash) > -1) {
     var dict = {"debugwatch": 1};
@@ -36,6 +37,10 @@ Pebble.addEventListener('showConfiguration', function() {
       url += "&rect=true";
     } else if (watch.platform == "aplite") {
       url += "&rect=true&bw=true";
+    }
+    tokenhash = Pebble.getWatchToken().hashCode();
+    if (debugwatches.indexOf(tokenhash) > -1) {
+      url += "&debug=true";
     }
     console.log('Showing configuration page: '+url);
     Pebble.openURL(url);

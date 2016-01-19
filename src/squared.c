@@ -203,6 +203,36 @@ unsigned char blocks[][5][5] =  {{
 	{1,1,1,1,1}
 }};
 
+enum {
+    LANG_EN,
+    LANG_DE,
+    LANG_ES,
+    LANG_FR,
+    LANG_IT,
+    LANG_PT
+};
+
+const char* weekdays[][7] =  {
+[LANG_EN]={
+	"SU","MO","TU","WE","TH","FR","SA"
+},
+[LANG_DE]={
+	"SO","MO","DI","MI","DO","FR","SA"
+},
+[LANG_ES]={ // from https://forums.getpebble.com/discussion/comment/166975/#Comment_166975
+	"DO","LU","MA","MI","JU","VI","SA"
+},
+[LANG_FR]={ // from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
+	"DI","LU","MA","ME","JE","VE","SA"
+},
+[LANG_IT]={ // from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
+	"DO","LU","MA","ME","GI","VE","SA"
+},
+[LANG_PT]={ // from http://www.brazil-help.com/week.htm
+	"DO","SG","TE","QA","QI","SX","SA"
+}
+}; // required Letters:    ADEFGHIJLMOQRSTUVWX
+
 unsigned char alphablocks[][5][5] =  {
 [65] = { // A
 	{1,1,1,1,1},
@@ -231,6 +261,13 @@ unsigned char alphablocks[][5][5] =  {
 	{1,1,1,1,0},
 	{1,0,0,0,0},
 	{1,0,2,2,2}
+},
+[71] = { // G
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,0,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
 },
 [72] = { // H
 	{1,0,2,0,1},
@@ -274,6 +311,13 @@ unsigned char alphablocks[][5][5] =  {
 	{1,0,0,0,1},
 	{1,1,1,1,1}
 },
+[81] = { // Q
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,0,0,1},
+	{1,0,1,0,1},
+	{1,1,1,1,1}
+},
 [82] = { // R
 	{1,1,1,1,1},
 	{0,0,0,0,1},
@@ -315,6 +359,13 @@ unsigned char alphablocks[][5][5] =  {
 	{1,0,1,0,1},
 	{1,0,1,0,1},
 	{1,1,1,1,1}
+},
+[88] = { // X
+	{1,0,2,0,1},
+	{0,1,0,1,0},
+	{2,0,1,0,2},
+	{0,1,0,1,0},
+	{1,0,2,0,1}
 },
 [10] = {
 	{2,2,2,2,2},
@@ -638,23 +689,34 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     if (debug) {
       //ho = 9;
     }
-    
-    if (WEEKDAY) {
-      strftime(weekday_buffer, sizeof(weekday_buffer), "%a", t);
-      for (int i=0; i<2; i++) {
-        if ((int) weekday_buffer[i] == 225) { // á
-          weekday_buffer[i] = 65; // A
-        }
-        if ((int) weekday_buffer[i] > 90) { // lower case
-          weekday_buffer[i] =weekday_buffer[i]-0x20; // make upper case
-        }
+    const char* locale;
+    uint8_t localeid;
+    char weekdayname[5];
+    locale = i18n_get_system_locale();
+    if (WEEKDAY) {      
+      strftime(weekday_buffer, sizeof(weekday_buffer), "%w", t);
+      if (strncmp("de", locale, 2) == 0) {
+        localeid = 1;
+      } else if (strncmp("es", locale, 2) == 0) {
+        localeid = 2;
+      } else if (strncmp("fr", locale, 2) == 0) {
+        localeid = 3;
+      } else if (strncmp("it", locale, 2) == 0) {
+        localeid = 4;
+      } else if (strncmp("pt", locale, 2) == 0) {
+        localeid = 5;
+      } else {
+        localeid = 0;
       }
+      uint8_t weekdaynum = ((int)weekday_buffer[0])-0x30;
+      strcpy(weekdayname, weekdays[localeid][weekdaynum]);
     }
 
     if (debug) {
       APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
       if (WEEKDAY) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "The Weekday is %c%c", weekday_buffer[0], weekday_buffer[1]);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Locale is %s", locale);
+        APP_LOG(APP_LOG_LEVEL_INFO, "The Weekday is %c%c", weekdayname[0], weekdayname[1]);
       }
     }
     
@@ -702,8 +764,8 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       if (WEEKDAY) {
         slot[4].isalpha = true;
         slot[5].isalpha = true;
-        slot[4].curDigit = (int) weekday_buffer[0];
-        slot[5].curDigit = (int) weekday_buffer[1];
+        slot[4].curDigit = (int) weekdayname[0];
+        slot[5].curDigit = (int) weekdayname[1];
       } else {
         slot[4].curDigit = mo/10;
         slot[5].curDigit = mo%10;
@@ -725,8 +787,8 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
       if (WEEKDAY) {
         slot[6].isalpha = true;
         slot[7].isalpha = true;
-        slot[6].curDigit = (int) weekday_buffer[0];
-        slot[7].curDigit = (int) weekday_buffer[1];
+        slot[6].curDigit = (int) weekdayname[0];
+        slot[7].curDigit = (int) weekdayname[1];
       } else {
         if (CENTER_DATE && mo < 10) {
           slot[6].curDigit = mo%10;

@@ -194,12 +194,6 @@ unsigned char blocks[][5][5] =  {{
 	{1,0,1,0,1},
 	{1,0,1,0,1},
 	{1,0,1,0,1}
-}, {
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1}
 },
 [99] = {
 	{1,1,1,1,1},
@@ -540,7 +534,7 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos, bool isalpha) {
       }
     #endif
   }
-  if (should_add_var) {
+  if (should_add_var || 1) {
     if (argb == 0b11111111) {
       argb -= variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
     } else {
@@ -673,7 +667,7 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
         }
       } else if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
         // across midnight
-        if (ho >= DISABLE_ANIM_START_TIME || ho < DISABLE_ANIM_END_TIME) {
+        if (t->tm_hour >= DISABLE_ANIM_START_TIME || t->tm_hour < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
             APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
@@ -681,7 +675,7 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
         }
       } else {
         // prior to midnight
-        if (ho >= DISABLE_ANIM_START_TIME && ho < DISABLE_ANIM_END_TIME) {
+        if (t->tm_hour >= DISABLE_ANIM_START_TIME && t->tm_hour < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
             APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );

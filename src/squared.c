@@ -534,7 +534,7 @@ static GColor8 getSlotColor(int x, int y, int digit, int pos, bool isalpha) {
       }
     #endif
   }
-  if (should_add_var || 1) {
+  if (should_add_var) {
     if (argb == 0b11111111) {
       argb -= variation[ ( y*5 + x + digit*17 + pos*19 )%sizeof(variation) ];
     } else {

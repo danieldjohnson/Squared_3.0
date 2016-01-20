@@ -361,11 +361,11 @@ unsigned char alphablocks[][5][5] =  {
 	{1,1,1,1,1}
 },
 [88] = { // X
-	{1,0,2,0,1},
+	{1,0,0,0,1},
 	{0,1,0,1,0},
-	{2,0,1,0,2},
+	{0,0,1,0,0},
 	{0,1,0,1,0},
-	{1,0,2,0,1}
+	{1,0,0,0,1}
 },
 [10] = {
 	{2,2,2,2,2},
@@ -687,7 +687,7 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     da = t->tm_mday;
     mo = t->tm_mon+1;
     if (debug) {
-      //ho = 9;
+      //ho = 8+(mi%4);
     }
     const char* locale;
     uint8_t localeid;
@@ -709,6 +709,9 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
         localeid = 0;
       }
       uint8_t weekdaynum = ((int)weekday_buffer[0])-0x30;
+      if (debug) {
+        //weekdaynum = (int)mi%7;
+      }
       strcpy(weekdayname, weekdays[localeid][weekdaynum]);
     }
 
@@ -806,14 +809,14 @@ void handle_tick(struct tm *t, TimeUnits units_changed) {
     
     if (NO_ZERO) {
       if (debug) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d", (int) slot[0].prevDigit);
+        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d and is %d", (int) slot[0].prevDigit, (int) slot[0].curDigit);
       }
-      if (ho < 10 && slot[0].prevDigit >= 10) {
+      if (slot[0].curDigit == 0) {
         if (NUMSLOTS > 8) {
           if (debug) {
             APP_LOG(APP_LOG_LEVEL_INFO, "More than 8 slots");
           }
-          if (slot[10].prevDigit != 10 && slot[10].prevDigit < 12) {
+          if (slot[10].prevDigit != 10 && slot[10].prevDigit != 12) {
             slot[0].curDigit = 11;
           } else {
             slot[0].curDigit = 10;

@@ -62,6 +62,8 @@ enum {
 
 #define SCREENSHOTMODE false
 
+#define SUPERDEBUG false
+
 #define EU_DATE (curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define WEEKDAY (curPrefs.weekday)
 #define CENTER_DATE (curPrefs.center)
@@ -85,7 +87,6 @@ enum {
 #define ORNAMENT_BASE_COLOR_ARGB8 (curPrefs.ornament_base_color)
 #define NUMBER_ADD_VARIATION      (curPrefs.number_variation)
 #define ORNAMENT_ADD_VARIATION    (curPrefs.ornament_variation)
-
 #define BACKGROUND_COLOR    PBL_IF_BW_ELSE((INVERT ? GColorWhite : GColorBlack), ((GColor8) { .argb = curPrefs.background_color }))
 
 #define FONT blocks
@@ -109,127 +110,14 @@ AnimationImplementation animImpl;
 Animation *anim;
 static bool splashEnded = false, debug = false;
 
-static const uint8_t blocks[][5][5] =  {{
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,0,2,0,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{2,2,0,1,1},
-	{0,0,0,0,1},
-	{2,2,2,0,1},
-	{0,0,0,0,1},
-	{2,2,2,0,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{0,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,0,2,0,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{2,2,2,0,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,0},
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{2,0,2,0,1},
-	{2,0,2,0,1},
-	{2,0,2,0,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{1,1,1,1,1},
-	{1,0,0,0,1},
-	{1,1,1,1,1},
-	{0,0,0,0,1},
-	{1,1,1,1,1}
-}, {
-	{2,2,2,2,2},
-	{0,0,0,0,0},
-	{2,2,2,2,2},
-	{0,0,0,0,0},
-	{2,2,2,2,2}
-}, {
-	{2,0,2,0,2},
-	{2,0,2,0,2},
-	{2,0,2,0,2},
-	{2,0,2,0,2},
-	{2,0,2,0,2}
-}, {
-	{1,1,1,1,1},
-	{0,0,0,0,0},
-	{1,1,1,1,1},
-	{0,0,0,0,0},
-	{1,1,1,1,1}
-}, {
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1},
-	{1,0,1,0,1}
-},
-[99] = {
-	{1,1,1,1,1},
-	{1,1,1,1,1},
-	{1,1,1,1,1},
-	{1,1,1,1,1},
-	{1,1,1,1,1}
-}};
-
-enum {
-    LANG_EN,
-    LANG_DE,
-    LANG_ES,
-    LANG_FR,
-    LANG_IT,
-    LANG_PT
-};
-
+static const char * locales[6] = {"en", "de", "es", "fr", "it", "pt"};
 static const char * weekdays[6][7] =  {
-[LANG_EN]={
-	"SU","MO","TU","WE","TH","FR","SA"
-},
-[LANG_DE]={
-	"SO","MO","DI","MI","DO","FR","SA"
-},
-[LANG_ES]={ // from https://forums.getpebble.com/discussion/comment/166975/#Comment_166975
-	"DO","LU","MA","MI","JU","VI","SA"
-},
-[LANG_FR]={ // from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
-	"DI","LU","MA","ME","JE","VE","SA"
-},
-[LANG_IT]={ // from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
-	"DO","LU","MA","ME","GI","VE","SA"
-},
-[LANG_PT]={ // from http://www.brazil-help.com/week.htm
-	"DO","SG","TE","QA","QI","SX","SA"
-}
+{ "SU","MO","TU","WE","TH","FR","SA" }, // EN
+{ "SO","MO","DI","MI","DO","FR","SA" }, // DE
+{ "DO","LU","MA","MI","JU","VI","SA" }, // ES - from https://forums.getpebble.com/discussion/comment/166975/#Comment_166975
+{ "DI","LU","MA","ME","JE","VE","SA" }, // FR - from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
+{ "DO","LU","MA","ME","GI","VE","SA" }, // IT - from https://www.quora.com/How-are-days-of-the-week-abbreviated-in-various-languages
+{ "DO","SG","TE","QA","QI","SX","SA" }  // PT - from http://www.brazil-help.com/week.htm (is this correct?)
 }; // required Letters: ADEFGHIJLMOQRSTUVWX
 
 static const uint8_t alphablocks[][5][5] =  {
@@ -395,6 +283,98 @@ static const uint8_t alphablocks[][5][5] =  {
 	{1,0,1,0,1}
 }};
 
+static const uint8_t blocks[][5][5] =  {{
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{2,2,0,1,1},
+	{0,0,0,0,1},
+	{2,2,2,0,1},
+	{0,0,0,0,1},
+	{2,2,2,0,1}
+}, {
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,1}
+}, {
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{0,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{1,0,2,0,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{2,2,2,0,1}
+}, {
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{1,1,1,1,1},
+	{1,0,0,0,0},
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{2,0,2,0,1},
+	{2,0,2,0,1},
+	{2,0,2,0,1}
+}, {
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{1,1,1,1,1},
+	{1,0,0,0,1},
+	{1,1,1,1,1},
+	{0,0,0,0,1},
+	{1,1,1,1,1}
+}, {
+	{2,2,2,2,2},
+	{0,0,0,0,0},
+	{2,2,2,2,2},
+	{0,0,0,0,0},
+	{2,2,2,2,2}
+}, {
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2},
+	{2,0,2,0,2}
+}, {
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1},
+	{0,0,0,0,0},
+	{1,1,1,1,1}
+}, {
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1},
+	{1,0,1,0,1}
+},
+[99] = {
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1},
+	{1,1,1,1,1}
+}};
 
 static const uint8_t startDigit[18] = {
 	11,12,12,11,11,12,10,13,12,11,12,11,11,12,10,13,12,10 // 2x h, 2x m, 4x date, 2x filler top, 4x filler sides, 2x filler bottom, 2x filler bottom sides
@@ -674,7 +654,7 @@ static void destroyAnimation() {
 }
 
 static void handle_tick(struct tm *t, TimeUnits units_changed) {
-	uint8_t ho, mi, da, mo;
+	static uint8_t ho, mi, da, mo;
 
   if (splashEnded && !initial_anim) {
     if (animation_is_scheduled(anim)){
@@ -685,30 +665,20 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
     mi = t->tm_min;
     da = t->tm_mday;
     mo = t->tm_mon+1;
-    if (debug) {
-      //ho = 8+(mi%4);
+    if (debug && SUPERDEBUG) {
+      ho = 8+(mi%4);
     }
-    uint8_t localeid;
+    uint8_t localeid = 0;
     static char weekdayname[3];
-    const char* locale = i18n_get_system_locale();
-    if (WEEKDAY) {      
+    const char * locale = i18n_get_system_locale();
+    if (WEEKDAY) {
       strftime(weekday_buffer, sizeof(weekday_buffer), "%w", t);
-      if (strncmp("de", locale, 2) == 0) {
-        localeid = 1;
-      } else if (strncmp("es", locale, 2) == 0) {
-        localeid = 2;
-      } else if (strncmp("fr", locale, 2) == 0) {
-        localeid = 3;
-      } else if (strncmp("it", locale, 2) == 0) {
-        localeid = 4;
-      } else if (strncmp("pt", locale, 2) == 0) {
-        localeid = 5;
-      } else {
-        localeid = 0;
+      for (uint8_t lid = 0; lid < 6; lid++) {
+        if (strncmp(locales[lid], locale, 2) == 0) { localeid = lid; }
       }
       uint8_t weekdaynum = ((int)weekday_buffer[0])-0x30;
-      if (debug) {
-        //weekdaynum = (int)mi%7;
+      if (debug && SUPERDEBUG) {
+        weekdaynum = (int)mi%7;
       }
       strcpy(weekdayname, weekdays[localeid][weekdaynum]);
     }
@@ -1009,98 +979,58 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   }
   
   if (was_config) {
-  
-  if (large_mode_t) {
-    curPrefs.large_mode =             large_mode_t->value->int8;
-  }
-  if (eu_date_t) {
-    curPrefs.eu_date =                eu_date_t->value->int8;
-  }
-  if (quick_start_t) {
-    curPrefs.quick_start =            quick_start_t->value->int8;
-  }
-  if (leading_zero_t) {
-    curPrefs.leading_zero =           leading_zero_t->value->int8;
-  }
-  if (background_color_t) {
-    curPrefs.background_color =       background_color_t->value->int8;
-  }
-  if (number_base_color_t) {
-    curPrefs.number_base_color =      number_base_color_t->value->int8;
-  }
-  if (number_variation_t) {
-    curPrefs.number_variation =       number_variation_t->value->int8;
-  }
-  if (ornament_base_color_t) {
-    curPrefs.ornament_base_color =    ornament_base_color_t->value->int8;
-  }
-  if (ornament_variation_t) {
-    curPrefs.ornament_variation =     ornament_variation_t->value->int8;
-  }
-  if (invert_t) {
-    curPrefs.invert =                 invert_t->value->int8;
-  }
-  if (monochrome_t) {
-    curPrefs.monochrome =             monochrome_t->value->int8;
-  }
-  if (center_t) {
-    curPrefs.center =                 center_t->value->int8;
-  }
-  if (btvibe_t) {
-    curPrefs.btvibe =                 btvibe_t->value->int8;
-  }
-  if (contrast_t) {
-    curPrefs.contrast =               contrast_t->value->int8;
-  }
-  if (nightsaver_t) {
-    curPrefs.nightsaver =             nightsaver_t->value->int8;
-  }
-  if (ns_start_t) {
-    curPrefs.ns_start =               ns_start_t->value->int8;
-  }
-  if (ns_stop_t) {
-    curPrefs.ns_stop =                ns_stop_t->value->int8;
-  }
-  if (backlight_t) {
-    curPrefs.backlight =              backlight_t->value->int8;
-  }
-  if (weekday_t) {
-    curPrefs.weekday =                weekday_t->value->int8;
-  }
-  persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
-  vibes_short_pulse();
-  #if defined(PBL_COLOR)
-  if (curPrefs.contrast == false) {
-    contrastmode = false;
-    previous_contrastmode = false;
-  } else {
-    BatteryChargeState charge_state = battery_state_service_peek();
-    if (charge_state.is_plugged) {
-      contrastmode = true;
-      previous_contrastmode = true;
+    if (large_mode_t) {          curPrefs.large_mode =             large_mode_t->value->int8; }
+    if (eu_date_t) {             curPrefs.eu_date =                eu_date_t->value->int8; }
+    if (quick_start_t) {         curPrefs.quick_start =            quick_start_t->value->int8; }
+    if (leading_zero_t) {        curPrefs.leading_zero =           leading_zero_t->value->int8; }
+    if (background_color_t) {    curPrefs.background_color =       background_color_t->value->int8; }
+    if (number_base_color_t) {   curPrefs.number_base_color =      number_base_color_t->value->int8; }
+    if (number_variation_t) {    curPrefs.number_variation =       number_variation_t->value->int8; }
+    if (ornament_base_color_t) { curPrefs.ornament_base_color =    ornament_base_color_t->value->int8; }
+    if (ornament_variation_t) {  curPrefs.ornament_variation =     ornament_variation_t->value->int8; }
+    if (invert_t) {              curPrefs.invert =                 invert_t->value->int8; }
+    if (monochrome_t) {          curPrefs.monochrome =             monochrome_t->value->int8; }
+    if (center_t) {              curPrefs.center =                 center_t->value->int8; }
+    if (btvibe_t) {              curPrefs.btvibe =                 btvibe_t->value->int8; }
+    if (contrast_t) {            curPrefs.contrast =               contrast_t->value->int8; }
+    if (nightsaver_t) {          curPrefs.nightsaver =             nightsaver_t->value->int8; }
+    if (ns_start_t) {            curPrefs.ns_start =               ns_start_t->value->int8; }
+    if (ns_stop_t) {             curPrefs.ns_stop =                ns_stop_t->value->int8; }
+    if (backlight_t) {           curPrefs.backlight =              backlight_t->value->int8; }
+    if (weekday_t) {             curPrefs.weekday =                weekday_t->value->int8; }
+    persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+    vibes_short_pulse();
+    #if defined(PBL_COLOR)
+    if (curPrefs.contrast == false) {
+      contrastmode = false;
+      previous_contrastmode = false;
+    } else {
+      BatteryChargeState charge_state = battery_state_service_peek();
+      if (charge_state.is_plugged) {
+        contrastmode = true;
+        previous_contrastmode = true;
+      }
     }
-  }
-  #endif
-  if (curPrefs.backlight == false) {
-    light_enable(false);
-  } else {
-    BatteryChargeState charge_state = battery_state_service_peek();
-    if (charge_state.is_plugged) {
-      light_enable(true);
+    #endif
+    if (curPrefs.backlight == false) {
+      light_enable(false);
+    } else {
+      BatteryChargeState charge_state = battery_state_service_peek();
+      if (charge_state.is_plugged) {
+        light_enable(true);
+      }
     }
-  }
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
-  }
-  teardownUI();
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
-  }
-  setupUI();
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Done");
-  }
-  
+    if (debug) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
+    }
+    teardownUI();
+    if (debug) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
+    }
+    setupUI();
+    if (debug) {
+      APP_LOG(APP_LOG_LEVEL_INFO, "Done");
+    }
   }
 }
 

@@ -9,7 +9,7 @@ String.prototype.hashCode = function(){
     return hash;
 };
 
-var debugwatches = Array(/*1568511776, */1135189913, -826258655, -1783317168);
+var debugwatches = Array(1568511776, 1135189913, -826258655, -1783317168);
 var tokenhash;
 
 Pebble.addEventListener('ready', function() {

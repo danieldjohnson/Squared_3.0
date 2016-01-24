@@ -9,17 +9,21 @@ String.prototype.hashCode = function(){
     return hash;
 };
 
-var debugwatches = Array(1568511776, 1135189913, -826258655, -1783317168);
+var debugwatches = Array(
+  1568511776, //c
+  1135189913, //b
+  -826258655, //a
+  -1783317168, //em
+  91860716, //a sl
+  -1462573071, //b sl
+  244993878 //c sl
+);
 var tokenhash;
+
 
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready!');
-  tokenhash = Pebble.getWatchToken().hashCode();
-  console.log('Watch identifier '+tokenhash);
-  if (debugwatches.indexOf(tokenhash) > -1) {
-    var dict = {"debugwatch": 1};
-    Pebble.sendAppMessage(dict);    
-  }
+  console.log('WatchToken '+Pebble.getWatchToken());
 });
 
 Pebble.addEventListener('appmessage', function() {
@@ -47,33 +51,38 @@ Pebble.addEventListener('showConfiguration', function() {
 });
 
 Pebble.addEventListener('webviewclosed', function(e) {
-    var configData = JSON.parse(decodeURIComponent(e.response));
-    console.log('Configuration page returned: '+JSON.stringify(configData));
-    if (configData.background_color) {
-        Pebble.sendAppMessage({
-            large_mode: 0+(configData.large_mode === 'true'),
-            eu_date: 0+(configData.eu_date === 'true'),
-            quick_start: 0+(configData.quick_start === 'true'),
-            leading_zero: 0+(configData.leading_zero === 'true'),
-            background_color: configData.background_color,
-            number_base_color: configData.number_base_color,
-            number_variation: configData.number_variation,
-            ornament_base_color: configData.ornament_base_color,
-            ornament_variation: configData.ornament_variation,
-            invert: 0+(configData.invert === 'true'),
-            monochrome: 0+(configData.monochrome === 'true'),
-            center: 0+(configData.center === 'true'),
-            btvibe: 0+(configData.btvibe === 'true'),
-            contrast: 0+(configData.contrast === 'true'),
-            nightsaver: 0+(configData.nightsaver === 'true'),
-            ns_start: parseInt(configData.ns_start),
-            ns_stop: parseInt(configData.ns_stop),
-            backlight: 0+(configData.backlight === 'true'),
-            weekday: 0+(configData.weekday === 'true')
-        }, function() {
-            console.log('Send successful!');
-        }, function() {
-            console.log('Send failed!');
-        });
-    }
+  var configData = JSON.parse(decodeURIComponent(e.response));
+  console.log('Configuration page returned: '+JSON.stringify(configData));
+  var options = {
+    large_mode: 0+(configData.large_mode === 'true'),
+    eu_date: 0+(configData.eu_date === 'true'),
+    quick_start: 0+(configData.quick_start === 'true'),
+    leading_zero: 0+(configData.leading_zero === 'true'),
+    background_color: configData.background_color,
+    number_base_color: configData.number_base_color,
+    number_variation: configData.number_variation,
+    ornament_base_color: configData.ornament_base_color,
+    ornament_variation: configData.ornament_variation,
+    invert: 0+(configData.invert === 'true'),
+    monochrome: 0+(configData.monochrome === 'true'),
+    center: 0+(configData.center === 'true'),
+    btvibe: 0+(configData.btvibe === 'true'),
+    contrast: 0+(configData.contrast === 'true'),
+    nightsaver: 0+(configData.nightsaver === 'true'),
+    ns_start: parseInt(configData.ns_start),
+    ns_stop: parseInt(configData.ns_stop),
+    backlight: 0+(configData.backlight === 'true'),
+    weekday: 0+(configData.weekday === 'true'),
+  };
+  if (debugwatches.indexOf(tokenhash) > -1) {
+    console.log('Debug Watch with Hash '+tokenhash+'. Setting debug flag on watchface …');
+    options.debugwatch = 1;
+  }
+  if (configData.background_color) {
+    Pebble.sendAppMessage(options, function() {
+      console.log('Send successful!');
+    }, function() {
+      console.log('Send failed!');
+    });
+  }
 });

@@ -62,7 +62,9 @@ enum {
 
 #define SCREENSHOTMODE false
 
+#define DEBUG false
 #define SUPERDEBUG false
+
 
 #define EU_DATE (curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define WEEKDAY (curPrefs.weekday)
@@ -632,16 +634,13 @@ static unsigned short get_display_hour(uint8_t hour) {
 }
 
 static void setupAnimation() {
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Setting up anim");
-  }
   anim = animation_create();
 	animation_set_delay(anim, 0);
 	animation_set_duration(anim, contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
   animation_set_curve(anim, AnimationCurveEaseInOut);
   if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Done setting up anim %i", (int)anim);
+    APP_LOG(APP_LOG_LEVEL_INFO, "Set up anim %i", (int)anim);
   }
 }
 
@@ -670,7 +669,8 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
     }
     uint8_t localeid = 0;
     static char weekdayname[3];
-    const char * locale = i18n_get_system_locale();
+    static char locale[3];
+    strncpy(locale, i18n_get_system_locale(), 2);
     if (WEEKDAY) {
       strftime(weekday_buffer, sizeof(weekday_buffer), "%w", t);
       for (uint8_t lid = 0; lid < 6; lid++) {
@@ -682,28 +682,20 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
       }
       strcpy(weekdayname, weekdays[localeid][weekdaynum]);
     }
-
-    if (debug) {
-      APP_LOG(APP_LOG_LEVEL_INFO, "It is now %d:%d %d.%d.", (int)ho, (int)mi, (int)da, (int)mo);
-      if (WEEKDAY) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "Locale is %s", locale);
-        APP_LOG(APP_LOG_LEVEL_INFO, "The Weekday is %c%c", weekdayname[0], weekdayname[1]);
-      }
-    }
     
     allow_animate = true;
     if (DISABLE_ANIM) {
       if (DISABLE_ANIM_START_TIME == DISABLE_ANIM_END_TIME) {
         allow_animate = false;
         if (debug) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because activation and deactivation times are the same");
+          APP_LOG(APP_LOG_LEVEL_INFO, "Animation always off");
         }
       } else if (DISABLE_ANIM_START_TIME > DISABLE_ANIM_END_TIME) {
         // across midnight
         if (t->tm_hour >= DISABLE_ANIM_START_TIME || t->tm_hour < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+            APP_LOG(APP_LOG_LEVEL_INFO, "Animation off (%d:00 - %d:00)", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
           }
         }
       } else {
@@ -711,7 +703,7 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
         if (t->tm_hour >= DISABLE_ANIM_START_TIME && t->tm_hour < DISABLE_ANIM_END_TIME) {
           allow_animate = false;
           if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "No Animation because time is between %d:00 and %d:00", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
+            APP_LOG(APP_LOG_LEVEL_INFO, "Animation off (%d:00 - %d:00)", (int)DISABLE_ANIM_START_TIME , (int)DISABLE_ANIM_END_TIME );
           }
         }
       }
@@ -776,31 +768,19 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
     }
     
     if (NO_ZERO) {
-      if (debug) {
-        APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 was %d and is %d", (int) slot[0].prevDigit, (int) slot[0].curDigit);
-      }
       if (slot[0].curDigit == 0) {
         if (NUMSLOTS > 8) {
-          if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "More than 8 slots");
-          }
           if (slot[10].prevDigit != 10 && slot[10].prevDigit != 12) {
             slot[0].curDigit = 11;
           } else {
             slot[0].curDigit = 10;
           }
         } else {
-          if (debug) {
-            APP_LOG(APP_LOG_LEVEL_INFO, "8 slots or fewer");
-          }
           if (slot[0].prevDigit == 10) {
             slot[0].curDigit = 11;
           } else {
             slot[0].curDigit = 10;
           }
-        }
-        if (debug) {
-          APP_LOG(APP_LOG_LEVEL_INFO, "Slot 0 is now %d", (uint8_t) slot[0].curDigit);
         }
       }
       if (slot[4].curDigit == 0) {
@@ -831,9 +811,6 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
 }
 
 static void initialAnimationDone() {
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Stopped initial Animation");
-  }
   initial_anim = false;
 }
 
@@ -845,9 +822,6 @@ void handle_timer(void *data) {
   curTime = time(NULL);
   handle_tick(localtime(&curTime), SECOND_UNIT|MINUTE_UNIT|HOUR_UNIT|DAY_UNIT|MONTH_UNIT|YEAR_UNIT);
   initial_anim = true;
-  if (debug) {
-    APP_LOG(APP_LOG_LEVEL_INFO, "Starting initial Animation");
-  }
   if (initial_anim) {
     app_timer_register(contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION, initialAnimationDone, NULL);
   }
@@ -968,80 +942,88 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *weekday_t = dict_find(iter, KEY_WEEKDAY);
   Tuple *debug_t = dict_find(iter, KEY_DEBUGWATCH);
   
-  static bool was_config = true;
-  
   if (debug_t) {
     if (debug_t->value->int8 == 1) {
-      APP_LOG(APP_LOG_LEVEL_INFO, "Enabling debug infos for debug watch");
+      APP_LOG(APP_LOG_LEVEL_INFO, "Setting debug watch");
       debug = true;
-      was_config = false;
     }
   }
   
-  if (was_config) {
-    if (large_mode_t) {          curPrefs.large_mode =             large_mode_t->value->int8; }
-    if (eu_date_t) {             curPrefs.eu_date =                eu_date_t->value->int8; }
-    if (quick_start_t) {         curPrefs.quick_start =            quick_start_t->value->int8; }
-    if (leading_zero_t) {        curPrefs.leading_zero =           leading_zero_t->value->int8; }
-    if (background_color_t) {    curPrefs.background_color =       background_color_t->value->int8; }
-    if (number_base_color_t) {   curPrefs.number_base_color =      number_base_color_t->value->int8; }
-    if (number_variation_t) {    curPrefs.number_variation =       number_variation_t->value->int8; }
-    if (ornament_base_color_t) { curPrefs.ornament_base_color =    ornament_base_color_t->value->int8; }
-    if (ornament_variation_t) {  curPrefs.ornament_variation =     ornament_variation_t->value->int8; }
-    if (invert_t) {              curPrefs.invert =                 invert_t->value->int8; }
-    if (monochrome_t) {          curPrefs.monochrome =             monochrome_t->value->int8; }
-    if (center_t) {              curPrefs.center =                 center_t->value->int8; }
-    if (btvibe_t) {              curPrefs.btvibe =                 btvibe_t->value->int8; }
-    if (contrast_t) {            curPrefs.contrast =               contrast_t->value->int8; }
-    if (nightsaver_t) {          curPrefs.nightsaver =             nightsaver_t->value->int8; }
-    if (ns_start_t) {            curPrefs.ns_start =               ns_start_t->value->int8; }
-    if (ns_stop_t) {             curPrefs.ns_stop =                ns_stop_t->value->int8; }
-    if (backlight_t) {           curPrefs.backlight =              backlight_t->value->int8; }
-    if (weekday_t) {             curPrefs.weekday =                weekday_t->value->int8; }
-    persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
-    vibes_short_pulse();
-    #if defined(PBL_COLOR)
-    if (curPrefs.contrast == false) {
-      contrastmode = false;
-      previous_contrastmode = false;
-    } else {
-      BatteryChargeState charge_state = battery_state_service_peek();
-      if (charge_state.is_plugged) {
-        contrastmode = true;
-        previous_contrastmode = true;
-      }
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Got config");
+  }
+  if (large_mode_t) {          curPrefs.large_mode =             large_mode_t->value->int8; }
+  if (eu_date_t) {             curPrefs.eu_date =                eu_date_t->value->int8; }
+  if (quick_start_t) {         curPrefs.quick_start =            quick_start_t->value->int8; }
+  if (leading_zero_t) {        curPrefs.leading_zero =           leading_zero_t->value->int8; }
+  if (background_color_t) {    curPrefs.background_color =       background_color_t->value->int8; }
+  if (number_base_color_t) {   curPrefs.number_base_color =      number_base_color_t->value->int8; }
+  if (number_variation_t) {    curPrefs.number_variation =       number_variation_t->value->int8; }
+  if (ornament_base_color_t) { curPrefs.ornament_base_color =    ornament_base_color_t->value->int8; }
+  if (ornament_variation_t) {  curPrefs.ornament_variation =     ornament_variation_t->value->int8; }
+  if (invert_t) {              curPrefs.invert =                 invert_t->value->int8; }
+  if (monochrome_t) {          curPrefs.monochrome =             monochrome_t->value->int8; }
+  if (center_t) {              curPrefs.center =                 center_t->value->int8; }
+  if (btvibe_t) {              curPrefs.btvibe =                 btvibe_t->value->int8; }
+  if (contrast_t) {            curPrefs.contrast =               contrast_t->value->int8; }
+  if (nightsaver_t) {          curPrefs.nightsaver =             nightsaver_t->value->int8; }
+  if (ns_start_t) {            curPrefs.ns_start =               ns_start_t->value->int8; }
+  if (ns_stop_t) {             curPrefs.ns_stop =                ns_stop_t->value->int8; }
+  if (backlight_t) {           curPrefs.backlight =              backlight_t->value->int8; }
+  if (weekday_t) {             curPrefs.weekday =                weekday_t->value->int8; }
+
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Writing config");
+  }
+  persist_write_data(PREFERENCES_KEY, &curPrefs, sizeof(curPrefs));
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Wrote config");
+  }
+  vibes_short_pulse();
+  #if defined(PBL_COLOR)
+  if (curPrefs.contrast == false) {
+    contrastmode = false;
+    previous_contrastmode = false;
+  } else {
+    BatteryChargeState charge_state = battery_state_service_peek();
+    if (charge_state.is_plugged) {
+      contrastmode = true;
+      previous_contrastmode = true;
     }
-    #endif
-    if (curPrefs.backlight == false) {
-      light_enable(false);
-    } else {
-      BatteryChargeState charge_state = battery_state_service_peek();
-      if (charge_state.is_plugged) {
-        light_enable(true);
-      }
+  }
+  #endif
+  if (curPrefs.backlight == false) {
+    light_enable(false);
+  } else {
+    BatteryChargeState charge_state = battery_state_service_peek();
+    if (charge_state.is_plugged) {
+      light_enable(true);
     }
-    if (debug) {
-      APP_LOG(APP_LOG_LEVEL_INFO, "Tearing down");
-    }
-    teardownUI();
-    if (debug) {
-      APP_LOG(APP_LOG_LEVEL_INFO, "Setting up");
-    }
-    setupUI();
-    if (debug) {
-      APP_LOG(APP_LOG_LEVEL_INFO, "Done");
-    }
+  }
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Teardown");
+  }
+  teardownUI();
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Setup");
+  }
+  setupUI();
+  if (debug) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Done");
   }
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {
-  APP_LOG(APP_LOG_LEVEL_WARNING, "Dropped a message because %i", (int)reason);
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Dropped message because %i", (int)reason);
 }
 
 
 static void init() {
-  setlocale(LC_ALL, "en_US");
   window = window_create();
+  
+  if (DEBUG) {
+    debug = true;
+  }
   
   // Set up preferences
   if(persist_exists(PREFERENCES_KEY)){

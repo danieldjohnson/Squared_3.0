@@ -35,7 +35,7 @@ Pebble.addEventListener('showConfiguration', function() {
     if(Pebble.getActiveWatchInfo) {
       watch = Pebble.getActiveWatchInfo();
     }
-    var url='http://pebble.lastfuture.de/config/squared48/';
+    var url='http://pebble.lastfuture.de/config/squared412/';
     url += "?model="+watch.model;
     if (watch.platform == "basalt") {
       url += "&rect=true";
@@ -73,6 +73,9 @@ Pebble.addEventListener('webviewclosed', function(e) {
     ns_stop: parseInt(configData.ns_stop),
     backlight: 0+(configData.backlight === 'true'),
     weekday: 0+(configData.weekday === 'true'),
+    bottomrow: parseInt(configData.bottomrow),
+    wristflick: parseInt(configData.wristflick),
+    stepgoal: parseInt(configData.stepgoal),
   };
   if (debugwatches.indexOf(tokenhash) > -1) {
     console.log('Debug Watch with Hash '+tokenhash+'. Setting debug flag on watchface …');

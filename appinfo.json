@@ -2,6 +2,7 @@
     "appKeys": {
         "background_color": 4,
         "backlight": 17,
+        "bottomrow": 19,
         "btvibe": 12,
         "center": 11,
         "contrast": 13,
@@ -19,7 +20,9 @@
         "ornament_base_color": 7,
         "ornament_variation": 8,
         "quick_start": 2,
-        "weekday": 18
+        "stepgoal": 21,
+        "weekday": 18,
+        "wristflick": 20
     },
     "capabilities": [
         "configurable",

@@ -29,7 +29,9 @@ typedef struct {
   uint8_t ns_stop;
   bool backlight;
   bool weekday;
-  
+  uint8_t bottomrow;
+  uint8_t wristflick;
+  uint16_t stepgoal;
 } Preferences;
 
 Preferences curPrefs;
@@ -54,12 +56,9 @@ enum {
   KEY_NS_STOP,
   KEY_BACKLIGHT,
   KEY_WEEKDAY,
-};
-
-enum {
-  SLOT_TYPE_DIGIT,
-  SLOT_TYPE_ALPHA,
-  SLOT_TYPE_PROGRESS,
+  KEY_BOTTOMROW,
+  KEY_WRISTFLICK,
+  KEY_STEPGOAL,
 };
 
 #define KEY_DEBUGWATCH 50
@@ -71,17 +70,12 @@ enum {
 #define DEBUG false
 #define SUPERDEBUG false
 
+#define BOTTOMROW (curPrefs.bottomrow)
+#define WRISTFLICK (curPrefs.wristflick)
+#define STEP_GOAL (curPrefs.stepgoal)
 
 #define EU_DATE (curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define WEEKDAY (curPrefs.weekday)
-
-#define BATTERY_PERCENTAGE false
-#define STEP_PERCENTAGE (BATTERY_PERCENTAGE ? false : true) // replace "true" with pref
-#define PROGRESS (BATTERY_PERCENTAGE || STEP_PERCENTAGE)
-#define PROGRESS_MIRROR false // TODO: this needs to work without mirroring the previous digits
-#define PROGRESS_ON_SHAKE true
-#define STEP_GOAL 10000
-
 #define CENTER_DATE (curPrefs.center)
 #define DISCONNECT_VIBRATION (curPrefs.btvibe)
 #define CONTRAST_WHILE_CHARGING PBL_IF_BW_ELSE(false, (curPrefs.contrast))
@@ -138,7 +132,8 @@ static char weekday_buffer[2];
 AnimationImplementation animImpl;
 Animation *anim;
 static bool splashEnded = false, debug = false, in_shake_mode = false;
-static uint8_t progress = 0;
+static uint16_t stepprogress = 0;
+static uint8_t battprogress = 0;
 
 static const char * locales[6] = {"en", "de", "es", "fr", "it", "pt"};
 static const char * weekdays[6][7] =  {
@@ -168,37 +163,55 @@ static const uint8_t character_map[] = {
 [11] = 11,
 [12] = 12,
 [13] = 13,
+// PUNCTUATION
+[37] = 14,
 // UPPERCASE ASCII CHARACTERS
-[65] = 14,
-[68] = 15,
-[69] = 16,
-[70] = 17,
-[71] = 18,
-[72] = 19,
-[73] = 20,
-[74] = 21,
-[76] = 22,
-[77] = 23,
+[65] = 15,
+[66] = 16,
+[67] = 17,
+[68] = 18,
+[69] = 19,
+[70] = 20,
+[71] = 21,
+[72] = 22,
+[73] = 23,
+[74] = 24,
+  [75] = 25,
+[76] = 26,
+[77] = 27,
+[78] = 28,
 [79] = 0, // same as 0
-[81] = 24,
-[82] = 25,
-[83] = 26,
-[84] = 27,
-[85] = 28,
-[86] = 29,
-[87] = 30,
-[88] = 31,
+[80] = 29,
+[81] = 30,
+[82] = 31,
+[83] = 32,
+[84] = 33,
+[85] = 34,
+[86] = 35,
+[87] = 36,
+[88] = 37,
+[89] = 38,
 // PROGRESS
 [100] = 10, // same as ornament 10
-[101] = 32,
-[102] = 33,
-[103] = 34,
-[104] = 35,
-[105] = 36,
-[106] = 37,
-[107] = 38,
-[108] = 39,
-[109] = 13 // same as ornament 13
+[101] = 39,
+[102] = 40,
+[103] = 41,
+[104] = 42,
+[105] = 43,
+[106] = 44,
+[107] = 45,
+[108] = 46,
+[109] = 13, // same as ornament 13
+[110] = 11, // same as ornament 11
+[111] = 47,
+[112] = 48,
+[113] = 49,
+[114] = 50,
+[115] = 51,
+[116] = 52,
+[117] = 53,
+[118] = 54,
+[119] = 12, // same as ornament 12
 };
 
 // left column is digit color, right column is ornament color
@@ -303,6 +316,14 @@ static const uint8_t characters[][10] =  {
   0b10101, 0b00000,
   0b10101, 0b00000
 },
+// PUNCTUATION
+{ // %
+  0b10001, 0b00000,
+  0b00010, 0b00000,
+  0b00100, 0b00000,
+  0b01000, 0b00000,
+  0b10001, 0b00000
+},
 // UPPERCASE ASCII CHARACTERS
 { // A
   0b11111, 0b00000,
@@ -310,6 +331,20 @@ static const uint8_t characters[][10] =  {
   0b11111, 0b00000,
   0b10001, 0b00000,
   0b10001, 0b00100
+},
+{ // B
+  0b11110, 0b00000,
+  0b10001, 0b00000,
+  0b11110, 0b00000,
+  0b10001, 0b00000,
+  0b11110, 0b00000
+},
+{ // C
+  0b11111, 0b00000,
+  0b10000, 0b00000,
+  0b10000, 0b00111,
+  0b10000, 0b00000,
+  0b11111, 0b00000
 },
 { // D
   0b11111, 0b00000,
@@ -360,6 +395,13 @@ static const uint8_t characters[][10] =  {
   0b00001, 0b00000,
   0b11111, 0b00000
 },
+{ // K
+  0b10001, 0b00100,
+  0b10010, 0b00000,
+  0b11100, 0b00000,
+  0b10010, 0b00000,
+  0b10001, 0b00100
+},
 { // L
   0b10000, 0b00101,
   0b10000, 0b00101,
@@ -374,7 +416,21 @@ static const uint8_t characters[][10] =  {
   0b10001, 0b00000,
   0b10001, 0b00100
 },
+{ // N
+  0b10001, 0b00000,
+  0b11001, 0b00000,
+  0b10101, 0b00000,
+  0b10011, 0b00000,
+  0b10001, 0b00000
+},
 // O is same as 0
+{ // P
+  0b11111, 0b00000,
+  0b10001, 0b00000,
+  0b11111, 0b00000,
+  0b10000, 0b00000,
+  0b10000, 0b00111
+},
 { // Q
   0b11111, 0b00000,
   0b10001, 0b00000,
@@ -430,6 +486,13 @@ static const uint8_t characters[][10] =  {
   0b00100, 0b00000,
   0b01010, 0b00000,
   0b10001, 0b00000
+},
+{ // Y
+  0b10001, 0b00000,
+  0b10001, 0b00000,
+  0b11111, 0b00000,
+  0b00001, 0b00000,
+  0b11111, 0b00000
 },
 // PROGRESS
 // 01% is same as ornament 10
@@ -490,6 +553,70 @@ static const uint8_t characters[][10] =  {
   0b10101, 0b00000
 },
 // 100% is same as ornament 13
+
+// PROGRESS 2
+// 01% is same as ornament 11
+{ // 12%
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b00101,
+  0b10000, 0b00101
+},
+{ // 23%
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b00001,
+  0b11100, 0b00001
+},
+{ // 34%
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+},
+{ // 45%
+  0b00000, 0b10101,
+  0b00000, 0b00101,
+  0b10000, 0b00101,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+},
+{ // 56%
+  0b00000, 0b10101,
+  0b00000, 0b00001,
+  0b11100, 0b00001,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+},
+{ // 67%
+  0b00000, 0b10101,
+  0b00000, 0b00000,
+  0b11111, 0b00000,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+},
+{ // 78%
+  0b10000, 0b00101,
+  0b00000, 0b00000,
+  0b11111, 0b00000,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+},
+{ // 89%
+  0b11100, 0b00001,
+  0b00000, 0b00000,
+  0b11111, 0b00000,
+  0b00000, 0b00000,
+  0b11111, 0b00000
+}
+// 100% is same as ornament 12
+};
+
+static const uint8_t progress_top_seq[19] = {
+  0, 10, 20, 30, 31, 32, 33, 43, 53, 63, 64, 65, 66, 76, 86, 96, 97, 98, 99
 };
 
 static const uint8_t startDigit[18] = {
@@ -764,57 +891,139 @@ static void destroyAnimation() {
   anim = NULL;
 }
 
-static void setProgressSlots(uint8_t progress, bool showgoal, bool mirrored) {
-  uint8_t mappedProgress = (((progress+3)*0.95*40)/100);
-  if (showgoal && progress == 100) {
-    slot[4].curDigit = 'G';
-    slot[5].curDigit = 'O';
-    slot[6].curDigit = 'A';
-    slot[7].curDigit = 'L';
-  } else {
-    slot[4].curDigit = 100;
-    slot[5].curDigit = 100;
-    slot[6].curDigit = 100;
-    slot[7].curDigit = 100;
-    uint8_t partialSegment = 100+mappedProgress%10;
-    if (!mirrored) {
-      slot[4].curDigit = partialSegment;
-      if (mappedProgress >= 10) {
-        slot[4].curDigit = 109;
-        slot[5].curDigit = partialSegment;
-      }
-      if (mappedProgress >= 20) {
-        slot[5].curDigit = 109;
-        slot[6].curDigit = partialSegment;
-      }
-      if (mappedProgress >= 30) {
-        slot[6].curDigit = 109;
-        slot[7].curDigit = partialSegment;
-      }
-      if (mappedProgress >= 40) {
-        slot[7].curDigit = 109;
-      }
+static void setProgressSlots(uint16_t progress, bool showgoal, bool bottom) {
+  static uint8_t digits[4];
+  static uint8_t progressoffset;
+  uint8_t mappedProgress;
+  if (bottom) {
+    progressoffset = 100;
+    mappedProgress = (((progress+3)*0.95*40)/100);
+    digits[0] = 4;
+    digits[1] = 5;
+    digits[2] = 6;
+    digits[3] = 7;
+    if (showgoal && progress == 100) {
+      slot[digits[0]].curDigit = 'G';
+      slot[digits[1]].curDigit = 'O';
+      slot[digits[2]].curDigit = 'A';
+      slot[digits[3]].curDigit = 'L';
     } else {
-      slot[4].mirror = true;
-      slot[5].mirror = true;
-      slot[6].mirror = true;
-      slot[7].mirror = true;
-      slot[7].curDigit = partialSegment;
+      for(uint8_t dig = 0; dig < sizeof digits; dig++) {
+        slot[digits[dig]].curDigit = 100;
+      }
+      uint8_t partialSegment = progressoffset+mappedProgress%10;
+      slot[digits[0]].curDigit = partialSegment;
       if (mappedProgress >= 10) {
-        slot[7].curDigit = 109;
-        slot[6].curDigit = partialSegment;
+        slot[digits[0]].curDigit = progressoffset+9;
+        slot[digits[1]].curDigit = partialSegment;
       }
       if (mappedProgress >= 20) {
-        slot[6].curDigit = 109;
-        slot[5].curDigit = partialSegment;
+        slot[digits[1]].curDigit = progressoffset+9;
+        slot[digits[2]].curDigit = partialSegment;
       }
       if (mappedProgress >= 30) {
-        slot[5].curDigit = 109;
-        slot[4].curDigit = partialSegment;
+        slot[digits[2]].curDigit = progressoffset+9;
+        slot[digits[3]].curDigit = partialSegment;
       }
       if (mappedProgress >= 40) {
-        slot[4].curDigit = 109;
+        slot[digits[3]].curDigit = progressoffset+9;
       }
+    }
+  } else {
+    progressoffset = 110;
+    mappedProgress = (((progress+3)*0.92*40)/100);
+    if (!showgoal || (showgoal && progress < 100)) {
+      uint8_t front_digit = progress_top_seq[mappedProgress%20]/10;
+      uint8_t back_digit = progress_top_seq[mappedProgress%20]%10;
+      if (mappedProgress<19) {
+        slot[0].curDigit = progressoffset;
+        slot[1].curDigit = progressoffset;
+        slot[2].curDigit = progressoffset+front_digit;
+        slot[3].curDigit = progressoffset+back_digit;
+      } else {
+        slot[0].curDigit = progressoffset+front_digit;
+        slot[1].curDigit = progressoffset+back_digit;
+        slot[2].curDigit = progressoffset+9;
+        slot[3].curDigit = progressoffset+9;
+      }
+      if (progress >= 100) {
+        slot[0].curDigit = progressoffset+9;
+        slot[1].curDigit = progressoffset+9;
+        slot[2].curDigit = progressoffset+9;
+        slot[3].curDigit = progressoffset+9;
+      }
+    } else if (showgoal && progress > 999) {
+      slot[4].curDigit = 9;
+      slot[5].curDigit = 9;
+      slot[6].curDigit = 9;
+      slot[7].curDigit = '%';
+    } else if (showgoal && progress >= 100) {
+      uint16_t input = progress;
+      uint16_t hundreds=input/100; 
+      input-=(hundreds)*100; 
+      uint8_t tens=input/10; 
+      input-=(tens)*10; 
+      uint8_t units=input; 
+      slot[4].curDigit = hundreds;
+      slot[5].curDigit = tens;
+      slot[6].curDigit = units;
+      slot[7].curDigit = '%';
+    }
+    if (showgoal && progress >= 999) {
+      slot[0].curDigit = 'F';
+      slot[1].curDigit = 'U';
+      slot[2].curDigit = 'C';
+      slot[3].curDigit = 'K';
+    } else if (showgoal && progress >= 500) {
+      slot[0].curDigit = 'W';
+      slot[1].curDigit = 'H';
+      slot[2].curDigit = 'A';
+      slot[3].curDigit = 'T';
+    } else if (showgoal && progress >= 400) {
+      slot[0].curDigit = 'T';
+      slot[1].curDigit = 'I';
+      slot[2].curDigit = 'L';
+      slot[3].curDigit = 'T';
+    } else if (showgoal && progress >= 300) {
+      slot[0].curDigit = 'O';
+      slot[1].curDigit = 'M';
+      slot[2].curDigit = 'F';
+      slot[3].curDigit = 'G';
+    } else if (showgoal && progress >= 250) {
+      slot[0].curDigit = 'H';
+      slot[1].curDigit = 'O';
+      slot[2].curDigit = 'L';
+      slot[3].curDigit = 'Y';
+    } else if (showgoal && progress >= 200) {
+      slot[0].curDigit = 'D';
+      slot[1].curDigit = 'A';
+      slot[2].curDigit = 'N';
+      slot[3].curDigit = 'G';
+    } else if (showgoal && progress >= 150) {
+      slot[0].curDigit = 'W';
+      slot[1].curDigit = 'H';
+      slot[2].curDigit = 'O';
+      slot[3].curDigit = 'A';
+    } else if (showgoal && progress >= 120) {
+      slot[0].curDigit = 'Y';
+      slot[1].curDigit = 'E';
+      slot[2].curDigit = 'A';
+      slot[3].curDigit = 'H';
+    } else if (showgoal && progress >= 100) {
+      slot[0].curDigit = 'N';
+      slot[1].curDigit = 'I';
+      slot[2].curDigit = 'C';
+      slot[3].curDigit = 'E';
+    } else if (WRISTFLICK == 2) {
+      slot[4].curDigit = 'S';
+      slot[5].curDigit = 'T';
+      slot[6].curDigit = 'E';
+      slot[7].curDigit = 'P';
+    } else {
+      slot[4].curDigit = 'B';
+      slot[5].curDigit = 'A';
+      slot[6].curDigit = 'T';
+      slot[7].curDigit = 'T';
     }
   }
 }
@@ -828,25 +1037,19 @@ static void update_step_goal() {
   // Check the metric has data available for today
   HealthServiceAccessibilityMask mask = health_service_metric_accessible(metric, 
                                                                          start, end);
-
   if(mask & HealthServiceAccessibilityMaskAvailable) {
     // Data is available!
-    progress = (int)(((float)health_service_sum_today(metric)/(float)STEP_GOAL)*100);
-    APP_LOG(APP_LOG_LEVEL_INFO, "Step progress: %d%%", progress);
+    stepprogress = (uint16_t)(((float)health_service_sum_today(metric)/(float)STEP_GOAL)*100);
+    APP_LOG(APP_LOG_LEVEL_INFO, "Step progress: %d%%", stepprogress);
   } else {
     // No data recorded yet today
     APP_LOG(APP_LOG_LEVEL_ERROR, "Data unavailable!");
-    progress = 0;
   }
   #endif
 }
 
 static void handle_tick(struct tm *t, TimeUnits units_changed) {
 	static uint8_t ho, mi, da, mo;
-  
-  if (STEP_PERCENTAGE && !PROGRESS_ON_SHAKE) {
-    update_step_goal();
-  }
 
   if (splashEnded && !initial_anim) {
     if (animation_is_scheduled(anim)){
@@ -911,91 +1114,91 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
     slot[2].curDigit = mi/10;
     slot[3].curDigit = mi%10;
     
-    if (!EU_DATE) {
-      if (WEEKDAY) {
-        slot[4].curDigit = (uint8_t) weekdayname[0];
-        slot[5].curDigit = (uint8_t) weekdayname[1];
-      } else {
-        slot[4].curDigit = mo/10;
-        slot[5].curDigit = mo%10;
-      }
-      if (CENTER_DATE && da < 10) {
-        slot[6].curDigit = da%10;
-        if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
-          slot[7].curDigit = 11;
-        } else {
-          slot[7].curDigit = 10;
-        }
-      } else {
-        slot[6].curDigit = da/10;
-        slot[7].curDigit = da%10;
-      }
+    if (BOTTOMROW == 2) {
+      update_step_goal();
+      setProgressSlots(stepprogress, true, true);
+    } else if (BOTTOMROW == 1) {
+      BatteryChargeState charge_state = battery_state_service_peek();
+      battprogress = charge_state.charge_percent;
+      setProgressSlots(battprogress, false, true);
     } else {
-      slot[4].curDigit = da/10;
-      slot[5].curDigit = da%10;
-      if (WEEKDAY) {
-        slot[6].curDigit = (uint8_t) weekdayname[0];
-        slot[7].curDigit = (uint8_t) weekdayname[1];
-      } else {
-        if (CENTER_DATE && mo < 10) {
-          slot[6].curDigit = mo%10;
+      if (!EU_DATE) {
+        if (WEEKDAY) {
+          slot[4].curDigit = (uint8_t) weekdayname[0];
+          slot[5].curDigit = (uint8_t) weekdayname[1];
+        } else {
+          slot[4].curDigit = mo/10;
+          slot[5].curDigit = mo%10;
+        }
+        if (CENTER_DATE && da < 10) {
+          slot[6].curDigit = da%10;
           if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
             slot[7].curDigit = 11;
           } else {
             slot[7].curDigit = 10;
           }
         } else {
-          slot[6].curDigit = mo/10;
-          slot[7].curDigit = mo%10;
+          slot[6].curDigit = da/10;
+          slot[7].curDigit = da%10;
+        }
+      } else {
+        slot[4].curDigit = da/10;
+        slot[5].curDigit = da%10;
+        if (WEEKDAY) {
+          slot[6].curDigit = (uint8_t) weekdayname[0];
+          slot[7].curDigit = (uint8_t) weekdayname[1];
+        } else {
+          if (CENTER_DATE && mo < 10) {
+            slot[6].curDigit = mo%10;
+            if (slot[7].prevDigit == 10 || slot[7].prevDigit == 12) {
+              slot[7].curDigit = 11;
+            } else {
+              slot[7].curDigit = 10;
+            }
+          } else {
+            slot[6].curDigit = mo/10;
+            slot[7].curDigit = mo%10;
+          }
         }
       }
     }
     
-    if (!in_shake_mode) {
-      if (NO_ZERO) {
-        if (slot[0].curDigit == 0) {
-          if (NUMSLOTS > 8) {
-            if (slot[10].prevDigit != 10 && slot[10].prevDigit != 12) {
-              slot[0].curDigit = 11;
-            } else {
-              slot[0].curDigit = 10;
-            }
+    if (NO_ZERO) {
+      if (slot[0].curDigit == 0) {
+        if (NUMSLOTS > 8) {
+          if (slot[10].prevDigit != 10 && slot[10].prevDigit != 12) {
+            slot[0].curDigit = 11;
           } else {
-            if (slot[0].prevDigit == 10) {
-              slot[0].curDigit = 11;
-            } else {
-              slot[0].curDigit = 10;
-            }
+            slot[0].curDigit = 10;
           }
-        }
-        if (slot[4].curDigit == 0) {
-          slot[4].curDigit = 10;
-          if (slot[4].prevDigit == 10) {
-            slot[4].curDigit++;
-          }
-        }
-        if (slot[6].curDigit == 0) {
-          slot[6].curDigit = 10;
-          if (slot[6].prevDigit == 10) {
-            slot[6].curDigit++;
-          }
-        }
-      }
-      if (NUMSLOTS > 8) {
-        for(int dig = 8; dig < NUMSLOTS; dig++) {
-          if (slot[dig].prevDigit == 10 || slot[dig].prevDigit == 12) {
-            slot[dig].curDigit = 11;
+        } else {
+          if (slot[0].prevDigit == 10) {
+            slot[0].curDigit = 11;
           } else {
-            slot[dig].curDigit = 10;
+            slot[0].curDigit = 10;
           }
         }
       }
-    } else {
-      for(int dig = 0; dig < 4; dig++) {
-        slot[dig].curDigit = slot[dig].prevDigit;
+      if (slot[4].curDigit == 0) {
+        slot[4].curDigit = 10;
+        if (slot[4].prevDigit == 10) {
+          slot[4].curDigit++;
+        }
       }
+      if (slot[6].curDigit == 0) {
+        slot[6].curDigit = 10;
+        if (slot[6].prevDigit == 10) {
+          slot[6].curDigit++;
+        }
+      }
+    }
+    if (NUMSLOTS > 8) {
       for(int dig = 8; dig < NUMSLOTS; dig++) {
-        slot[dig].curDigit = slot[dig].prevDigit;
+        if (slot[dig].prevDigit == 10 || slot[dig].prevDigit == 12) {
+          slot[dig].curDigit = 11;
+        } else {
+          slot[dig].curDigit = 10;
+        }
       }
     }
     setupAnimation();
@@ -1019,24 +1222,26 @@ void handle_timer(void *data) {
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
-  if (!in_shake_mode) {
-    for (uint8_t i=0; i<NUMSLOTS; i++) {
-      slot[i].prevDigit = slot[i].curDigit;
+  if (WRISTFLICK > 0) {
+    if (!in_shake_mode) {
+      for (uint8_t i=0; i<NUMSLOTS; i++) {
+        slot[i].prevDigit = slot[i].curDigit;
+      }
+      if (WRISTFLICK == 2) {
+        update_step_goal();
+        setProgressSlots(stepprogress, true, false);
+      } else if (WRISTFLICK == 1) {
+        BatteryChargeState charge_state = battery_state_service_peek();
+        battprogress = charge_state.charge_percent;
+        setProgressSlots(battprogress, false, false); // only show "GOAL" if PERCENTAGE is STEP_PERCENTAGE
+      }
+      setupAnimation();
+      animation_schedule(anim);
+      app_timer_register(3000, handle_timer, NULL);
+      in_shake_mode = true;
     }
-    if (STEP_PERCENTAGE && PROGRESS_ON_SHAKE) {
-      update_step_goal();
-    }
-    if (PROGRESS) {
-      setProgressSlots(progress, STEP_PERCENTAGE, PROGRESS_MIRROR); // only show "GOAL" if PERCENTAGE is STEP_PERCENTAGE
-    }
-    setupAnimation();
-    animation_schedule(anim);
-    app_timer_register(3000, handle_timer, NULL);
-    in_shake_mode = true;
   }
 }
-
-
 
 void initSlot(int i, Layer *parent) {
 	digitSlot *s = &slot[i];
@@ -1105,8 +1310,8 @@ static void teardownUI() {
 }
 
 static void battery_handler(BatteryChargeState charge_state) {
-  if (BATTERY_PERCENTAGE) {
-    progress = charge_state.charge_percent;
+  if (BOTTOMROW == 1 || WRISTFLICK == 1) {
+    battprogress = charge_state.charge_percent;
   }
   #if defined(PBL_COLOR)
   if (CONTRAST_WHILE_CHARGING) {
@@ -1151,6 +1356,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *ns_stop_t = dict_find(iter, KEY_NS_STOP);
   Tuple *backlight_t = dict_find(iter, KEY_BACKLIGHT);
   Tuple *weekday_t = dict_find(iter, KEY_WEEKDAY);
+  Tuple *bottomrow_t = dict_find(iter, KEY_BOTTOMROW);
+  Tuple *wristflick_t = dict_find(iter, KEY_WRISTFLICK);
+  Tuple *stepgoal_t = dict_find(iter, KEY_STEPGOAL);
   Tuple *debug_t = dict_find(iter, KEY_DEBUGWATCH);
   
   if (debug_t) {
@@ -1159,6 +1367,8 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
       debug = true;
     }
   }
+  
+  uint8_t old_largemode = curPrefs.large_mode;
   
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Got config");
@@ -1182,6 +1392,9 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (ns_stop_t) {             curPrefs.ns_stop =                ns_stop_t->value->int8; }
   if (backlight_t) {           curPrefs.backlight =              backlight_t->value->int8; }
   if (weekday_t) {             curPrefs.weekday =                weekday_t->value->int8; }
+  if (bottomrow_t) {           curPrefs.bottomrow =              bottomrow_t->value->int8; }
+  if (wristflick_t) {          curPrefs.wristflick =             wristflick_t->value->int8; }
+  if (stepgoal_t) {            curPrefs.stepgoal =               stepgoal_t->value->int16; }
 
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Writing config");
@@ -1211,8 +1424,13 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
       light_enable(true);
     }
   }
-  window_set_background_color(window, contrastmode ? GColorBlack : BACKGROUND_COLOR);
-  app_timer_register(0, handle_timer, NULL);
+  if (old_largemode == curPrefs.large_mode) {
+    window_set_background_color(window, contrastmode ? GColorBlack : BACKGROUND_COLOR);
+    app_timer_register(0, handle_timer, NULL);
+  } else {
+    teardownUI();
+    setupUI();
+  }
 }
 
 static void in_dropped_handler(AppMessageResult reason, void *context) {
@@ -1225,11 +1443,6 @@ static void init() {
   
   if (DEBUG) {
     debug = true;
-  }
-  
-  if (BATTERY_PERCENTAGE) {
-    BatteryChargeState charge_state = battery_state_service_peek();
-    progress = charge_state.charge_percent;
   }
   
   // Set up preferences
@@ -1256,6 +1469,9 @@ static void init() {
       .ns_stop = 6,
       .backlight = false,
       .weekday = false,
+      .bottomrow = 0,
+      .wristflick = 0,
+      .stepgoal = 10000
     };
   }
   
@@ -1280,7 +1496,7 @@ static void init() {
   // Setup app message
   app_message_register_inbox_received(in_received_handler);
   app_message_register_inbox_dropped(in_dropped_handler);
-  app_message_open(200,0);
+  app_message_open(260,0);
 	
 	tick_timer_service_subscribe(MINUTE_UNIT, handle_tick);
   

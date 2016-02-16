@@ -32,9 +32,22 @@ typedef struct {
   uint8_t bottomrow;
   uint8_t wristflick;
   uint16_t stepgoal;
+  bool cheeky;
 } Preferences;
 
 Preferences curPrefs;
+
+
+
+typedef struct {
+  uint8_t daynum;
+  uint8_t monthnum;
+  uint8_t weekdaychar1;
+  uint8_t weekdaychar2;
+} Date;
+
+Date curDate;
+
 
 enum {
   KEY_LARGE_MODE,
@@ -59,6 +72,7 @@ enum {
   KEY_BOTTOMROW,
   KEY_WRISTFLICK,
   KEY_STEPGOAL,
+  KEY_CHEEKY,
 };
 
 #define KEY_DEBUGWATCH 50
@@ -73,6 +87,7 @@ enum {
 #define BOTTOMROW (curPrefs.bottomrow)
 #define WRISTFLICK (curPrefs.wristflick)
 #define STEP_GOAL (curPrefs.stepgoal)
+#define CHEEKY_REMARKS (curPrefs.cheeky)
 
 #define EU_DATE (curPrefs.eu_date) // true == MM/DD, false == DD/MM
 #define WEEKDAY (curPrefs.weekday)
@@ -131,7 +146,7 @@ static char weekday_buffer[2];
 
 AnimationImplementation animImpl;
 Animation *anim;
-static bool splashEnded = false, debug = false, in_shake_mode = false;
+static bool splashEnded = false, debug = false, in_shake_mode = false, prev_chargestate = false;
 static uint16_t stepprogress = 0;
 static uint8_t battprogress = 0;
 
@@ -164,53 +179,58 @@ static const uint8_t character_map[] = {
 [12] = 12,
 [13] = 13,
 // PUNCTUATION
-[37] = 14,
+[14] = 14,
+[15] = 15,
+[16] = 16,
+[17] = 13, // same as 13
+[37] = 17,
+[42] = 18,
 // UPPERCASE ASCII CHARACTERS
-[65] = 15,
-[66] = 16,
-[67] = 17,
-[68] = 18,
-[69] = 19,
-[70] = 20,
-[71] = 21,
-[72] = 22,
-[73] = 23,
-[74] = 24,
-  [75] = 25,
-[76] = 26,
-[77] = 27,
-[78] = 28,
+[65] = 19,
+[66] = 20,
+[67] = 21,
+[68] = 22,
+[69] = 23,
+[70] = 24,
+[71] = 25,
+[72] = 26,
+[73] = 27,
+[74] = 28,
+[75] = 29,
+[76] = 30,
+[77] = 31,
+[78] = 32,
 [79] = 0, // same as 0
-[80] = 29,
-[81] = 30,
-[82] = 31,
-[83] = 32,
-[84] = 33,
-[85] = 34,
-[86] = 35,
-[87] = 36,
-[88] = 37,
-[89] = 38,
+[80] = 33,
+[81] = 34,
+[82] = 35,
+[83] = 36,
+[84] = 37,
+[85] = 38,
+[86] = 39,
+[87] = 40,
+[88] = 41,
+[89] = 42,
 // PROGRESS
 [100] = 10, // same as ornament 10
-[101] = 39,
-[102] = 40,
-[103] = 41,
-[104] = 42,
-[105] = 43,
-[106] = 44,
-[107] = 45,
-[108] = 46,
+[101] = 43,
+[102] = 44,
+[103] = 45,
+[104] = 46,
+[105] = 47,
+[106] = 48,
+[107] = 49,
+[108] = 50,
 [109] = 13, // same as ornament 13
 [110] = 11, // same as ornament 11
-[111] = 47,
-[112] = 48,
-[113] = 49,
-[114] = 50,
-[115] = 51,
-[116] = 52,
-[117] = 53,
-[118] = 54,
+[111] = 51,
+[112] = 52,
+[113] = 53,
+[114] = 54,
+[115] = 55,
+[116] = 56,
+[117] = 57,
+[118] = 58,
 [119] = 12, // same as ornament 12
 };
 
@@ -317,12 +337,40 @@ static const uint8_t characters[][10] =  {
   0b10101, 0b00000
 },
 // PUNCTUATION
+{ // •••
+  0b00000, 0b10101,
+  0b00000, 0b10101,
+  0b00000, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000
+},
+{ // •••
+  0b00000, 0b10101,
+  0b00000, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000
+},
+{ // •••
+  0b00000, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000,
+  0b10101, 0b00000
+},
 { // %
   0b10001, 0b00000,
   0b00010, 0b00000,
   0b00100, 0b00000,
   0b01000, 0b00000,
   0b10001, 0b00000
+},
+{ // *
+  0b10101, 0b00000,
+  0b01110, 0b00000,
+  0b11111, 0b00000,
+  0b01110, 0b00000,
+  0b10101, 0b00000
 },
 // UPPERCASE ASCII CHARACTERS
 { // A
@@ -396,11 +444,11 @@ static const uint8_t characters[][10] =  {
   0b11111, 0b00000
 },
 { // K
-  0b10001, 0b00100,
+  0b10001, 0b00000,
   0b10010, 0b00000,
   0b11100, 0b00000,
   0b10010, 0b00000,
-  0b10001, 0b00100
+  0b10001, 0b00000
 },
 { // L
   0b10000, 0b00101,
@@ -875,7 +923,7 @@ static unsigned short get_display_hour(uint8_t hour) {
 static void setupAnimation() {
   anim = animation_create();
 	animation_set_delay(anim, 0);
-	animation_set_duration(anim, contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION);
+	animation_set_duration(anim, contrastmode ? 500 : in_shake_mode ? DIGIT_CHANGE_ANIM_DURATION/2 : DIGIT_CHANGE_ANIM_DURATION);
 	animation_set_implementation(anim, &animImpl);
   animation_set_curve(anim, AnimationCurveEaseInOut);
   if (debug) {
@@ -902,7 +950,24 @@ static void setProgressSlots(uint16_t progress, bool showgoal, bool bottom) {
     digits[1] = 5;
     digits[2] = 6;
     digits[3] = 7;
-    if (showgoal && progress == 100) {
+    BatteryChargeState charge_state;
+    if (showgoal && progress >= 102) {
+      uint16_t input = progress;
+      uint16_t hundreds = input/100;
+      input -= (hundreds)*100;
+      uint8_t tens = input/10;
+      input -= (tens)*10;
+      uint8_t units=input; 
+      slot[digits[0]].curDigit = hundreds;
+      slot[digits[1]].curDigit = tens;
+      slot[digits[2]].curDigit = units;
+      slot[digits[3]].curDigit = '%';
+    } else if (!showgoal && progress >= 100) {
+      slot[digits[0]].curDigit = progressoffset+9;
+      slot[digits[1]].curDigit = progressoffset+9;
+      slot[digits[2]].curDigit = progressoffset+9;
+      slot[digits[3]].curDigit = progressoffset+9;
+    } else if (showgoal && progress >= 100) {
       slot[digits[0]].curDigit = 'G';
       slot[digits[1]].curDigit = 'O';
       slot[digits[2]].curDigit = 'A';
@@ -927,6 +992,15 @@ static void setProgressSlots(uint16_t progress, bool showgoal, bool bottom) {
       }
       if (mappedProgress >= 40) {
         slot[digits[3]].curDigit = progressoffset+9;
+      }
+    }
+    if (BOTTOMROW == 1) {
+      charge_state = battery_state_service_peek();
+      if (charge_state.is_charging) {
+        slot[digits[0]].curDigit = 14;
+        slot[digits[1]].curDigit = 15;
+        slot[digits[2]].curDigit = 16;
+        slot[digits[3]].curDigit = 17;
       }
     }
   } else {
@@ -969,52 +1043,113 @@ static void setProgressSlots(uint16_t progress, bool showgoal, bool bottom) {
       slot[6].curDigit = units;
       slot[7].curDigit = '%';
     }
-    if (showgoal && progress >= 999) {
+    APP_LOG(APP_LOG_LEVEL_INFO, "Cheeky mode is %d", CHEEKY_REMARKS);
+    if (CHEEKY_REMARKS && showgoal && progress >= 999) {
       slot[0].curDigit = 'F';
-      slot[1].curDigit = 'U';
+      slot[1].curDigit = '*';
       slot[2].curDigit = 'C';
       slot[3].curDigit = 'K';
-    } else if (showgoal && progress >= 500) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 750) {
+      slot[0].curDigit = 'Y';
+      slot[1].curDigit = 'O';
+      slot[2].curDigit = 'L';
+      slot[3].curDigit = 'O';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 500) {
       slot[0].curDigit = 'W';
       slot[1].curDigit = 'H';
       slot[2].curDigit = 'A';
       slot[3].curDigit = 'T';
-    } else if (showgoal && progress >= 400) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 400) {
       slot[0].curDigit = 'T';
       slot[1].curDigit = 'I';
       slot[2].curDigit = 'L';
       slot[3].curDigit = 'T';
-    } else if (showgoal && progress >= 300) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 300) {
       slot[0].curDigit = 'O';
       slot[1].curDigit = 'M';
       slot[2].curDigit = 'F';
       slot[3].curDigit = 'G';
-    } else if (showgoal && progress >= 250) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 250) {
       slot[0].curDigit = 'H';
       slot[1].curDigit = 'O';
       slot[2].curDigit = 'L';
       slot[3].curDigit = 'Y';
-    } else if (showgoal && progress >= 200) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 200) {
+      slot[0].curDigit = 'G';
+      slot[1].curDigit = 'A';
+      slot[2].curDigit = 'S';
+      slot[3].curDigit = 'P';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 175) {
       slot[0].curDigit = 'D';
       slot[1].curDigit = 'A';
       slot[2].curDigit = 'N';
       slot[3].curDigit = 'G';
-    } else if (showgoal && progress >= 150) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 150) {
       slot[0].curDigit = 'W';
       slot[1].curDigit = 'H';
       slot[2].curDigit = 'O';
       slot[3].curDigit = 'A';
-    } else if (showgoal && progress >= 120) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 130) {
+      slot[0].curDigit = 'S';
+      slot[1].curDigit = 'W';
+      slot[2].curDigit = 'A';
+      slot[3].curDigit = 'G';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 115) {
+      slot[0].curDigit = 'C';
+      slot[1].curDigit = 'O';
+      slot[2].curDigit = 'O';
+      slot[3].curDigit = 'L';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 105) {
       slot[0].curDigit = 'Y';
       slot[1].curDigit = 'E';
       slot[2].curDigit = 'A';
       slot[3].curDigit = 'H';
-    } else if (showgoal && progress >= 100) {
-      slot[0].curDigit = 'N';
-      slot[1].curDigit = 'I';
-      slot[2].curDigit = 'C';
-      slot[3].curDigit = 'E';
-    } else if (WRISTFLICK == 2) {
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 100) {
+      slot[0].curDigit = 'G';
+      slot[1].curDigit = 'O';
+      slot[2].curDigit = 'A';
+      slot[3].curDigit = 'L';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 78) {
+      slot[4].curDigit = 'N';
+      slot[5].curDigit = 'I';
+      slot[6].curDigit = 'C';
+      slot[7].curDigit = 'E';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 62) {
+      slot[4].curDigit = 'N';
+      slot[5].curDigit = 'E';
+      slot[6].curDigit = 'A';
+      slot[7].curDigit = 'T';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 45) {
+      slot[4].curDigit = 'G';
+      slot[5].curDigit = 'O';
+      slot[6].curDigit = 'O';
+      slot[7].curDigit = 'D';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 28) {
+      slot[4].curDigit = 'O';
+      slot[5].curDigit = 'K';
+      slot[6].curDigit = 'A';
+      slot[7].curDigit = 'Y';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 16) {
+      slot[4].curDigit = 'W';
+      slot[5].curDigit = 'E';
+      slot[6].curDigit = 'L';
+      slot[7].curDigit = 'L';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 12) {
+      slot[4].curDigit = 'A';
+      slot[5].curDigit = 'H';
+      slot[6].curDigit = 'E';
+      slot[7].curDigit = 'M';
+    } else if (CHEEKY_REMARKS && showgoal && progress >= 8) {
+      slot[4].curDigit = 'L';
+      slot[5].curDigit = 'A';
+      slot[6].curDigit = 'M';
+      slot[7].curDigit = 'E';
+    } else if (CHEEKY_REMARKS && showgoal) {
+      slot[4].curDigit = 'O';
+      slot[5].curDigit = 'U';
+      slot[6].curDigit = 'C';
+      slot[7].curDigit = 'H';
+    } else if (!CHEEKY_REMARKS && showgoal) {
       slot[4].curDigit = 'S';
       slot[5].curDigit = 'T';
       slot[6].curDigit = 'E';
@@ -1063,6 +1198,7 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
     if (debug && SUPERDEBUG) {
       ho = 8+(mi%4);
     }
+    
     uint8_t localeid = 0;
     static char weekdayname[3];
     static char locale[3];
@@ -1179,16 +1315,18 @@ static void handle_tick(struct tm *t, TimeUnits units_changed) {
           }
         }
       }
-      if (slot[4].curDigit == 0) {
-        slot[4].curDigit = 10;
-        if (slot[4].prevDigit == 10) {
-          slot[4].curDigit++;
+      if (BOTTOMROW == 0) {
+        if (slot[4].curDigit == 0) {
+          slot[4].curDigit = 10;
+          if (slot[4].prevDigit == 10) {
+            slot[4].curDigit++;
+          }
         }
-      }
-      if (slot[6].curDigit == 0) {
-        slot[6].curDigit = 10;
-        if (slot[6].prevDigit == 10) {
-          slot[6].curDigit++;
+        if (slot[6].curDigit == 0) {
+          slot[6].curDigit = 10;
+          if (slot[6].prevDigit == 10) {
+            slot[6].curDigit++;
+          }
         }
       }
     }
@@ -1210,15 +1348,15 @@ static void initialAnimationDone() {
   initial_anim = false;
 }
 
+
 void handle_timer(void *data) {
   splashEnded = true;
   time_t curTime = time(NULL);
   handle_tick(localtime(&curTime), SECOND_UNIT|MINUTE_UNIT|HOUR_UNIT|DAY_UNIT|MONTH_UNIT|YEAR_UNIT);
 	in_shake_mode = false;
   initial_anim = true;
-  if (initial_anim) {
-    app_timer_register(contrastmode ? 500 : DIGIT_CHANGE_ANIM_DURATION, initialAnimationDone, NULL);
-  }
+  app_timer_register(contrastmode ? 500 : in_shake_mode ? DIGIT_CHANGE_ANIM_DURATION/2 : DIGIT_CHANGE_ANIM_DURATION, initialAnimationDone, NULL);
+
 }
 
 static void tap_handler(AccelAxisType axis, int32_t direction) {
@@ -1235,10 +1373,10 @@ static void tap_handler(AccelAxisType axis, int32_t direction) {
         battprogress = charge_state.charge_percent;
         setProgressSlots(battprogress, false, false); // only show "GOAL" if PERCENTAGE is STEP_PERCENTAGE
       }
+      in_shake_mode = true;
       setupAnimation();
       animation_schedule(anim);
       app_timer_register(3000, handle_timer, NULL);
-      in_shake_mode = true;
     }
   }
 }
@@ -1322,8 +1460,8 @@ static void battery_handler(BatteryChargeState charge_state) {
       contrastmode = false;
     }
     if (previous_contrastmode != contrastmode) {
-      teardownUI();
-      setupUI();
+      window_set_background_color(window, contrastmode ? GColorBlack : BACKGROUND_COLOR);
+      app_timer_register(0, handle_timer, NULL);
     }
   }
   #endif
@@ -1334,6 +1472,11 @@ static void battery_handler(BatteryChargeState charge_state) {
       light_enable(false);
     }
   }
+  if (prev_chargestate != charge_state.is_plugged) {
+    window_set_background_color(window, contrastmode ? GColorBlack : BACKGROUND_COLOR);
+    app_timer_register(0, handle_timer, NULL);
+  }
+  prev_chargestate = charge_state.is_plugged;
 }
 
 static void in_received_handler(DictionaryIterator *iter, void *context) {
@@ -1360,6 +1503,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *wristflick_t = dict_find(iter, KEY_WRISTFLICK);
   Tuple *stepgoal_t = dict_find(iter, KEY_STEPGOAL);
   Tuple *debug_t = dict_find(iter, KEY_DEBUGWATCH);
+  Tuple *cheeky_t = dict_find(iter, KEY_CHEEKY);
   
   if (debug_t) {
     if (debug_t->value->int8 == 1) {
@@ -1395,6 +1539,7 @@ static void in_received_handler(DictionaryIterator *iter, void *context) {
   if (bottomrow_t) {           curPrefs.bottomrow =              bottomrow_t->value->int8; }
   if (wristflick_t) {          curPrefs.wristflick =             wristflick_t->value->int8; }
   if (stepgoal_t) {            curPrefs.stepgoal =               stepgoal_t->value->int16; }
+  if (cheeky_t) {              curPrefs.cheeky =                 cheeky_t->value->int8; }
 
   if (debug) {
     APP_LOG(APP_LOG_LEVEL_INFO, "Writing config");
@@ -1471,7 +1616,8 @@ static void init() {
       .weekday = false,
       .bottomrow = 0,
       .wristflick = 0,
-      .stepgoal = 10000
+      .stepgoal = 10000,
+      .cheeky = true
     };
   }
   

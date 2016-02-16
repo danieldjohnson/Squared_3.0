@@ -76,6 +76,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
     bottomrow: parseInt(configData.bottomrow),
     wristflick: parseInt(configData.wristflick),
     stepgoal: parseInt(configData.stepgoal),
+    cheeky: 0+(configData.cheeky === 'true')
   };
   if (debugwatches.indexOf(tokenhash) > -1) {
     console.log('Debug Watch with Hash '+tokenhash+'. Setting debug flag on watchface …');

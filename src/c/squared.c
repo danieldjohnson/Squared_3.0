@@ -75,6 +75,8 @@ enum {
   KEY_CHEEKY,
 };
 
+bool obstructed_mode = false;
+
 #define KEY_DEBUGWATCH 50
 
 #define PREFERENCES_KEY 0
@@ -99,7 +101,7 @@ enum {
 #define DISABLE_ANIM_START_TIME (curPrefs.ns_start)
 #define DISABLE_ANIM_END_TIME (curPrefs.ns_stop)
 #define NO_ZERO (!curPrefs.leading_zero) // true == replaces leading Zero for hour, day, month with a "cycler"
-#define TILE_SIZE PBL_IF_RECT_ELSE((curPrefs.large_mode ? 12 : 10), 10)
+#define TILE_SIZE PBL_IF_RECT_ELSE((obstructed_mode ? 8 : curPrefs.large_mode ? 12 : 10), 10)
 #define INVERT (curPrefs.invert)
 #define GREYS (curPrefs.monochrome)
 #define NUMSLOTS PBL_IF_RECT_ELSE(8, 18)
@@ -126,7 +128,7 @@ enum {
     FONT_HEIGHT + SPACING_Y + FONT_HEIGHT)
 
 #define ORIGIN_X PBL_IF_RECT_ELSE(((144 - TILES_X)/2), ((180 - TILES_X)/2))
-#define ORIGIN_Y PBL_IF_RECT_ELSE((curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
+#define ORIGIN_Y PBL_IF_RECT_ELSE((obstructed_mode ? 1 : curPrefs.large_mode ? 1 : TILE_SIZE*1.5), (TILE_SIZE*2.2))
 
 
 
@@ -877,7 +879,7 @@ static void updateSlot(Layer *layer, GContext *ctx) {
 	widthadjust = 0;
 	digitSlot *slot = *(digitSlot**)layer_get_data(layer);
 
-	if (slot->divider == 2) {
+	if (slot->divider == 2 ) {
 		widthadjust = 1;
 	}
 	tilesize = TILE_SIZE/slot->divider;
@@ -892,6 +894,9 @@ static void updateSlot(Layer *layer, GContext *ctx) {
 		tx = t % FONT_WIDTH_BLOCKS;
 		ty = t / FONT_HEIGHT_BLOCKS;
 		shift = 0-(t-ty);
+    if (obstructed_mode) {
+      shift += 5;
+    }
     
     GColor8 oldColor = getSlotColor(tx, ty, slot->prevDigit, slot->slotIndex, slot->mirror);
     GColor8 newColor = getSlotColor(tx, ty, slot->curDigit, slot->slotIndex, slot->mirror);
@@ -900,7 +905,7 @@ static void updateSlot(Layer *layer, GContext *ctx) {
     graphics_fill_rect(ctx, GRect((tx*tilesize)-(tx*widthadjust), ty*tilesize-(ty*widthadjust), tilesize-widthadjust, tilesize-widthadjust), 0, GCornerNone);
 		
     if(!gcolor_equal(oldColor, newColor)) {
-      w = (skewedNormTime*TILE_SIZE/ANIMATION_NORMALIZED_MAX)+shift-widthadjust;
+      w = ((skewedNormTime*TILE_SIZE)/ANIMATION_NORMALIZED_MAX)+shift-widthadjust;
    		if (w < 0) {
   			w = 0;
   		} else if (w > tilesize-widthadjust) {
@@ -937,6 +942,13 @@ static void destroyAnimation() {
   }
   animation_destroy(anim);
   anim = NULL;
+  
+//   for (uint8_t i=0; i<NUMSLOTS; i++) {
+// 		if (slot[i].curDigit != slot[i].prevDigit) {
+//       slot[i].normTime = ANIMATION_NORMALIZED_MAX;
+// 			layer_mark_dirty(slot[i].layer);
+// 		}
+// 	}
 }
 
 static void setProgressSlots(uint16_t progress, bool showgoal, bool bottom) {
@@ -1417,6 +1429,20 @@ static void animateDigits(struct Animation *anim, const AnimationProgress normTi
 	}
 }
 
+static void prv_unobstructed_will_change(GRect final_unobstructed_screen_area,
+void *context) {
+  // Get the full size of the screen
+  GRect full_bounds = layer_get_bounds(window_get_root_layer(window));
+  if (!grect_equal(&full_bounds, &final_unobstructed_screen_area)) {
+    obstructed_mode = true;
+  } else {
+    obstructed_mode = false;
+  }
+  for (uint8_t i=0; i<NUMSLOTS; i++) {
+    layer_set_frame(slot[i].layer,slotFrame(i));
+	}
+}
+
 static void setupUI() {
   Layer *rootLayer;
   
@@ -1429,6 +1455,8 @@ static void setupUI() {
 	for (uint8_t i=0; i<NUMSLOTS; i++) {
 		initSlot(i, rootLayer);
 	}
+  
+  prv_unobstructed_will_change(layer_get_unobstructed_bounds(rootLayer),NULL);
 
 	animImpl.setup = NULL;
 	animImpl.update = animateDigits;
@@ -1582,7 +1610,6 @@ static void in_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_WARNING, "Dropped message because %i", (int)reason);
 }
 
-
 static void init() {
   window = window_create();
   
@@ -1655,6 +1682,11 @@ static void init() {
   });
   
   accel_tap_service_subscribe(tap_handler);
+  
+  UnobstructedAreaHandlers handlers = {
+    .will_change = prv_unobstructed_will_change
+  };
+  unobstructed_area_service_subscribe(handlers, NULL);
 }
 
 static void deinit() {
@@ -1662,6 +1694,7 @@ static void deinit() {
   connection_service_unsubscribe();
   battery_state_service_unsubscribe();
   accel_tap_service_unsubscribe();
+  unobstructed_area_service_unsubscribe();
   teardownUI();
   window_destroy(window);
 }
